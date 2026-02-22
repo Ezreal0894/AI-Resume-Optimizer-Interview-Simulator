@@ -1,0 +1,8 @@
+{
+  "name": "AI Career Coach",
+  "description": "An AI-powered resume optimizer and mock interview simulator featuring a modern executive dashboard.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
