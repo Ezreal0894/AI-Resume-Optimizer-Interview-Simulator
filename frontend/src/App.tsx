@@ -19,6 +19,8 @@ import ResumePage from './pages/ResumePage';
 import InterviewPage from './pages/InterviewPage';
 import ReportPage from './pages/ReportPage';
 import SettingsPage from './pages/SettingsPage';
+import DocumentsPage from './pages/DocumentsPage';
+import OnboardingView from './views/OnboardingView';
 
 // 路由守卫：需要认证
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -54,6 +56,16 @@ export default function App() {
         }
       />
 
+      {/* Onboarding - 需要认证 */}
+      <Route
+        path="/onboarding"
+        element={
+          <PrivateRoute>
+            <OnboardingView />
+          </PrivateRoute>
+        }
+      />
+
       {/* 需要认证的页面 */}
       <Route
         path="/dashboard"
@@ -67,6 +79,7 @@ export default function App() {
         <Route path="resume" element={<ResumePage />} />
         <Route path="interview" element={<InterviewPage />} />
         <Route path="report" element={<ReportPage />} />
+        <Route path="documents" element={<DocumentsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 

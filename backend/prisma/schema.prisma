@@ -1,6 +1,10 @@
 // ============================================
 // Prisma Schema - AI Career Platform
-// 数据库设计：PostgreSQL + JSONB 灵活存储
+// 🔄 v2.0 重构版本：完整契约对齐
+// - 雷达图 5 维度：technical, communication, problemSolving, cultureFit, leadership
+// - 简历分析：ATS 高阶结构
+// - 文档库：isPinned 聚合查询支持
+// - 积分补偿事务
 // ============================================
 
 generator client {
@@ -13,28 +17,32 @@ datasource db {
 }
 
 // ============================================
-// 用户模型 - 存储用户基本信息与认证数据
+// 用户模型
 // ============================================
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  password     String   // bcrypt 加密存储
+  password     String
   name         String?
   avatar       String?
   
-  // 会员相关
+  // Onboarding 标签（最多 10 个）
+  tags         String[] @default([])
+  
+  // 会员与积分
   plan         UserPlan @default(FREE)
   planExpireAt DateTime?
+  credits      Int      @default(50)
   
   // 时间戳
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
-  // 关联关系
+  // 关联
   resumes           Resume[]
   interviewSessions InterviewSession[]
   
-  // Refresh Token 存储（用于 Token 轮换和撤销）
+  // Token 管理
   refreshTokenHash  String?
   
   @@map("users")
@@ -47,52 +55,73 @@ enum UserPlan {
 }
 
 // ============================================
-// 简历模型 - 存储简历文件信息与 AI 分析结果
+// 简历模型
+// 🔄 新增：isPinned, 高阶 analysisReport 结构
+// analysisReport JSON 结构：
+// {
+//   "overallScore": 85,
+//   "atsCompatibility": { "score": 90, "suggestions": ["..."] },
+//   "keywordAnalysis": { "matched": ["React"], "missing": ["AWS"] },
+//   "structureAnalysis": { "sections": ["Experience"], "improvements": ["..."] },
+//   "contentSuggestions": ["量化成果", "添加指标"]
+// }
 // ============================================
 model Resume {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // 文件元信息（不存储文件本身，仅存储解析后的数据）
+  // 文件元信息
   fileName      String
   fileSize      Int
   mimeType      String
-  
-  // 解析后的原始文本内容
   rawContent    String   @db.Text
   
-  // AI 分析报告 - 使用 JSONB 灵活存储
-  // 结构示例: {
-  //   "overallScore": 85,
-  //   "atsCompatibility": { "score": 90, "suggestions": [...] },
-  //   "keywordAnalysis": { "matched": [...], "missing": [...] },
-  //   "structureAnalysis": { "sections": [...], "improvements": [...] },
-  //   "contentSuggestions": [...],
-  //   "optimizedVersion": "..."
-  // }
-  analysisReport Json?    @db.JsonB
+  // JD 对标
+  targetRole    String?
+  targetJd      String?  @db.Text
   
-  // 状态
+  // AI 分析报告（高阶 ATS 结构）
+  analysisReport Json?   @db.JsonB
+  
+  // 状态与置顶
   status    ResumeStatus @default(PENDING)
+  isPinned  Boolean      @default(false)
   
   // 时间戳
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   @@index([userId])
+  @@index([userId, createdAt])
   @@map("resumes")
 }
 
 enum ResumeStatus {
-  PENDING    // 待分析
-  ANALYZING  // 分析中
-  COMPLETED  // 已完成
-  FAILED     // 分析失败
+  PENDING
+  ANALYZING
+  COMPLETED
+  FAILED
 }
 
 // ============================================
-// 面试会话模型 - 记录一次完整的模拟面试
+// 面试会话模型
+// 🔄 新增：isPinned
+// metrics JSON 结构：
+// {
+//   "overallScore": 88,
+//   "radar": {
+//     "technical": 85,
+//     "communication": 90,
+//     "problemSolving": 88,
+//     "cultureFit": 82,
+//     "leadership": 75
+//   },
+//   "feedback": {
+//     "strengths": ["..."],
+//     "improvements": ["..."]
+//   }
+// }
 // ============================================
 model InterviewSession {
   id        String   @id @default(cuid())
@@ -100,27 +129,15 @@ model InterviewSession {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   // 面试配置
-  jobTitle      String           // 目标岗位
-  jobDescription String?         // 岗位描述
-  difficulty    InterviewDifficulty @default(MEDIUM)
+  jobTitle       String
+  jobDescription String?
+  difficulty     InterviewDifficulty @default(MEDIUM)
   
-  // 面试状态
+  // 状态与置顶
   status    InterviewStatus @default(IN_PROGRESS)
+  isPinned  Boolean         @default(false)
   
-  // 面试结束后的多维度分析报告 - 使用 JSONB 灵活存储
-  // 结构示例: {
-  //   "overallScore": 88,
-  //   "dimensions": {
-  //     "technicalDepth": 85,
-  //     "communication": 90,
-  //     "logicalThinking": 88,
-  //     "projectExperience": 82,
-  //     "stressResistance": 92
-  //   },
-  //   "strengths": [...],
-  //   "improvements": [...],
-  //   "detailedFeedback": "..."
-  // }
+  // AI 分析报告
   metrics   Json?    @db.JsonB
   
   // 时间戳
@@ -129,10 +146,11 @@ model InterviewSession {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  // 关联的对话记录
+  // 对话记录
   messages  InterviewMessage[]
   
   @@index([userId])
+  @@index([userId, createdAt])
   @@map("interview_sessions")
 }
 
@@ -144,24 +162,22 @@ enum InterviewDifficulty {
 }
 
 enum InterviewStatus {
-  IN_PROGRESS  // 进行中
-  COMPLETED    // 已完成
-  CANCELLED    // 已取消
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 // ============================================
-// 面试消息模型 - 记录单条对话
+// 面试消息模型
 // ============================================
 model InterviewMessage {
   id        String   @id @default(cuid())
   sessionId String
   session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   
-  // 消息内容
   role      MessageRole
   content   String      @db.Text
   
-  // 时间戳
   createdAt DateTime @default(now())
   
   @@index([sessionId])
@@ -169,7 +185,7 @@ model InterviewMessage {
 }
 
 enum MessageRole {
-  SYSTEM      // 系统提示词
-  ASSISTANT   // AI 面试官
-  USER        // 用户
+  SYSTEM
+  ASSISTANT
+  USER
 }

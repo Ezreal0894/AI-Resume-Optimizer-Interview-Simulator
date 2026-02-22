@@ -1,6 +1,6 @@
 /**
  * 面试服务
- * 🛡️ 防御性重构：AI 对话、SSE 流式输出、会话管理（支持客户端断开检测）
+ * 🔄 v2.0：前端契约对齐的雷达图 5 维度、积分补偿
  */
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +13,8 @@ import {
 } from '@langchain/core/messages';
 import { Observable, Subject } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateSessionDto } from './dto/interview.dto';
+import { UserService, CREDIT_COSTS } from '../user/user.service';
+import { CreateSessionDto, InterviewMetrics, TrendDataPoint } from './dto/interview.dto';
 
 // SSE 消息事件类型
 export interface SSEMessageEvent {
@@ -27,11 +28,12 @@ interface ChatMessage {
   content: string;
 }
 
-// LLM 配置
-const LLM_CONFIG = {
-  TIMEOUT: 60000,  // 60 秒超时
+// AI 配置
+const AI_CONFIG = {
+  TIMEOUT: 60000,
   MAX_TOKENS: 2000,
   TEMPERATURE: 0.7,
+  MAX_RETRIES: 2,
 };
 
 @Injectable()
@@ -41,25 +43,32 @@ export class InterviewService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly userService: UserService,
   ) {
-    // 初始化 DeepSeek LLM（流式模式）
     this.llm = new ChatOpenAI({
       modelName: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-chat'),
       openAIApiKey: this.config.get<string>('DEEPSEEK_API_KEY'),
       configuration: {
         baseURL: this.config.get<string>('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
       },
-      temperature: LLM_CONFIG.TEMPERATURE,
-      maxTokens: LLM_CONFIG.MAX_TOKENS,
+      temperature: AI_CONFIG.TEMPERATURE,
+      maxTokens: AI_CONFIG.MAX_TOKENS,
       streaming: true,
-      timeout: LLM_CONFIG.TIMEOUT,  // 🛡️ 添加超时控制
+      timeout: AI_CONFIG.TIMEOUT,
     });
   }
 
   /**
-   * 创建面试会话
+   * 创建面试会话（扣除积分）
    */
   async createSession(dto: CreateSessionDto, userId: string) {
+    // 检查并扣除积分
+    await this.userService.deductCredits(
+      userId,
+      CREDIT_COSTS.INTERVIEW_SESSION,
+      '创建面试会话',
+    );
+
     const session = await this.prisma.interviewSession.create({
       data: {
         userId,
@@ -72,7 +81,7 @@ export class InterviewService {
 
     // 创建系统提示消息
     const systemPrompt = this.generateSystemPrompt(dto.jobTitle, dto.jobDescription, dto.difficulty);
-    
+
     await this.prisma.interviewMessage.create({
       data: {
         sessionId: session.id,
@@ -83,7 +92,7 @@ export class InterviewService {
 
     // 生成开场白
     const greeting = this.generateGreeting(dto.jobTitle);
-    
+
     await this.prisma.interviewMessage.create({
       data: {
         sessionId: session.id,
@@ -100,7 +109,6 @@ export class InterviewService {
 
   /**
    * SSE 流式对话
-   * 🛡️ 返回 Observable 用于 NestJS @Sse() 装饰器，支持客户端断开检测
    */
   streamChat(
     sessionId: string,
@@ -108,18 +116,14 @@ export class InterviewService {
     userId: string,
   ): Observable<SSEMessageEvent> {
     const subject = new Subject<SSEMessageEvent>();
-    
-    // 🛡️ 创建取消标志
     let isCancelled = false;
-    
-    // 监听客户端断开
+
     const subscription = subject.subscribe({
       complete: () => {
         isCancelled = true;
       },
     });
 
-    // 异步执行流式对话
     this.executeStreamChat(sessionId, messages, userId, subject, () => isCancelled)
       .catch((error) => {
         if (!isCancelled) {
@@ -136,8 +140,7 @@ export class InterviewService {
   }
 
   /**
-   * 执行流式对话（内部方法）
-   * @private
+   * 执行流式对话
    */
   private async executeStreamChat(
     sessionId: string,
@@ -146,7 +149,6 @@ export class InterviewService {
     subject: Subject<SSEMessageEvent>,
     isCancelled: () => boolean,
   ): Promise<void> {
-    // 验证会话
     const session = await this.prisma.interviewSession.findFirst({
       where: { id: sessionId, userId },
     });
@@ -159,7 +161,6 @@ export class InterviewService {
       throw new BadRequestException('面试会话已结束');
     }
 
-    // 构建 Langchain 消息数组
     const langchainMessages = this.buildLangchainMessages(messages);
 
     // 存储用户消息
@@ -174,24 +175,20 @@ export class InterviewService {
       });
     }
 
-    // 流式调用 LLM
     let fullResponse = '';
-    
+
     try {
       const stream = await this.llm.stream(langchainMessages);
 
       for await (const chunk of stream) {
-        // 🛡️ 检查客户端是否已断开
         if (isCancelled()) {
           console.log('Client disconnected, stopping LLM stream');
           break;
         }
-        
+
         const content = chunk.content as string;
         if (content) {
           fullResponse += content;
-          
-          // 发送 SSE 事件
           subject.next({
             data: JSON.stringify({ content, done: false }),
             type: 'message',
@@ -199,15 +196,12 @@ export class InterviewService {
         }
       }
 
-      // 🛡️ 只有在未取消时才发送完成事件和存储
       if (!isCancelled()) {
-        // 发送完成事件
         subject.next({
           data: JSON.stringify({ content: '', done: true }),
           type: 'done',
         });
 
-        // 存储 AI 回复（只有有内容时才存储）
         if (fullResponse.trim()) {
           await this.prisma.interviewMessage.create({
             data: {
@@ -218,7 +212,6 @@ export class InterviewService {
           });
         }
       }
-
     } catch (error) {
       if (!isCancelled()) {
         console.error('LLM stream error:', error);
@@ -247,10 +240,9 @@ export class InterviewService {
       throw new NotFoundException('面试会话不存在');
     }
 
-    // 生成面试报告
-    const metrics = await this.generateInterviewReport(session.messages);
+    // 生成面试报告（带重试）
+    const metrics = await this.generateReportWithRetry(session.messages);
 
-    // 更新会话状态
     const updatedSession = await this.prisma.interviewSession.update({
       where: { id: sessionId },
       data: {
@@ -267,6 +259,36 @@ export class InterviewService {
   }
 
   /**
+   * 获取历史趋势数据（最近 10 次）
+   */
+  async getHistoryTrend(userId: string): Promise<TrendDataPoint[]> {
+    const sessions = await this.prisma.interviewSession.findMany({
+      where: {
+        userId,
+        status: 'COMPLETED',
+      },
+      select: {
+        id: true,
+        metrics: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+
+    return sessions
+      .filter((s) => s.metrics !== null)
+      .map((session) => {
+        const metrics = session.metrics as any;
+        return {
+          sessionId: session.id,
+          overallScore: metrics?.overallScore || 0,
+          createdAt: session.createdAt,
+        };
+      });
+  }
+
+  /**
    * 获取用户的面试会话列表
    */
   async getUserSessions(userId: string) {
@@ -277,11 +299,15 @@ export class InterviewService {
         jobTitle: true,
         difficulty: true,
         status: true,
+        isPinned: true,
         startedAt: true,
         endedAt: true,
         metrics: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { isPinned: 'desc' },
+        { createdAt: 'desc' },
+      ],
     });
   }
 
@@ -293,7 +319,7 @@ export class InterviewService {
       where: { id: sessionId, userId },
       include: {
         messages: {
-          where: { role: { not: 'SYSTEM' } },  // 不返回系统提示
+          where: { role: { not: 'SYSTEM' } },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -307,8 +333,29 @@ export class InterviewService {
   }
 
   /**
+   * 切换置顶状态
+   */
+  async togglePin(sessionId: string, userId: string) {
+    const session = await this.prisma.interviewSession.findFirst({
+      where: { id: sessionId, userId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('面试会话不存在');
+    }
+
+    return this.prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: { isPinned: !session.isPinned },
+      select: {
+        id: true,
+        isPinned: true,
+      },
+    });
+  }
+
+  /**
    * 生成系统提示词
-   * @private
    */
   private generateSystemPrompt(
     jobTitle: string,
@@ -334,14 +381,13 @@ export class InterviewService {
 3. 保持专业、友好的态度
 4. 适时给予正面反馈和引导
 5. 问题要有层次，从基础到深入
-6. 注意考察：技术能力、沟通表达、逻辑思维、项目经验、抗压能力
+6. 注意考察：技术能力、沟通表达、问题解决、文化契合、领导力
 
 请用中文进行面试。`;
   }
 
   /**
    * 生成开场白
-   * @private
    */
   private generateGreeting(jobTitle: string): string {
     return `你好！我是你的 AI 面试官。今天我们将进行「${jobTitle}」岗位的模拟面试。
@@ -355,7 +401,6 @@ export class InterviewService {
 
   /**
    * 构建 Langchain 消息数组
-   * @private
    */
   private buildLangchainMessages(messages: ChatMessage[]): BaseMessage[] {
     return messages.map((msg) => {
@@ -373,11 +418,32 @@ export class InterviewService {
   }
 
   /**
-   * 生成面试报告
-   * @private
+   * 带重试的报告生成
    */
-  private async generateInterviewReport(messages: any[]): Promise<any> {
-    // 过滤出对话内容
+  private async generateReportWithRetry(messages: any[]): Promise<InterviewMetrics> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= AI_CONFIG.MAX_RETRIES; attempt++) {
+      try {
+        return await this.generateInterviewReport(messages);
+      } catch (error) {
+        lastError = error as Error;
+        console.warn(`Report generation attempt ${attempt + 1} failed:`, error);
+
+        if (attempt < AI_CONFIG.MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
+    }
+
+    console.error('All report generation attempts failed:', lastError);
+    return this.getDefaultMetrics();
+  }
+
+  /**
+   * 🔄 生成面试报告（前端契约对齐的 5 维度）
+   */
+  private async generateInterviewReport(messages: any[]): Promise<InterviewMetrics> {
     const conversation = messages
       .filter((m) => m.role !== 'SYSTEM')
       .map((m) => `${m.role === 'ASSISTANT' ? '面试官' : '候选人'}: ${m.content}`)
@@ -388,46 +454,87 @@ export class InterviewService {
 对话内容：
 ${conversation.substring(0, 6000)}
 
-请以 JSON 格式返回评估报告：
+你必须严格按照以下 JSON 格式返回，不要添加任何其他内容：
 {
   "overallScore": 0-100的整体评分,
-  "dimensions": {
-    "technicalDepth": 0-100,
+  "radar": {
+    "technical": 0-100,
     "communication": 0-100,
-    "logicalThinking": 0-100,
-    "projectExperience": 0-100,
-    "stressResistance": 0-100
+    "problemSolving": 0-100,
+    "cultureFit": 0-100,
+    "leadership": 0-100
   },
-  "strengths": ["优势1", "优势2", "优势3"],
-  "improvements": ["改进建议1", "改进建议2", "改进建议3"],
-  "detailedFeedback": "详细的综合评价文字"
-}`;
+  "feedback": {
+    "strengths": ["优势1", "优势2", "优势3"],
+    "improvements": ["待改进1", "待改进2", "待改进3"]
+  }
+}
 
-    try {
-      const response = await this.llm.invoke([new HumanMessage(prompt)]);
-      const responseText = response.content as string;
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-    } catch (error) {
-      console.error('Generate report error:', error);
+评分维度说明：
+- technical: 技术深度 - 对专业知识的掌握程度
+- communication: 沟通表达 - 表达清晰度和逻辑性
+- problemSolving: 问题解决 - 分析和解决问题的能力
+- cultureFit: 文化契合 - 与团队文化的匹配度
+- leadership: 领导力 - 主动性和影响力`;
+
+    const response = await this.llm.invoke([new HumanMessage(prompt)]);
+    const responseText = response.content as string;
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      throw new Error('AI 返回格式错误，无法解析 JSON');
     }
 
-    // 返回默认报告
+    const metrics = JSON.parse(jsonMatch[0]) as InterviewMetrics;
+
+    // 验证并修正字段
+    return this.validateAndNormalizeMetrics(metrics);
+  }
+
+  /**
+   * 验证并规范化报告结构
+   */
+  private validateAndNormalizeMetrics(metrics: any): InterviewMetrics {
+    const clamp = (val: any, min: number, max: number) =>
+      typeof val === 'number' ? Math.min(max, Math.max(min, val)) : 75;
+
+    return {
+      overallScore: clamp(metrics.overallScore, 0, 100),
+      radar: {
+        technical: clamp(metrics.radar?.technical, 0, 100),
+        communication: clamp(metrics.radar?.communication, 0, 100),
+        problemSolving: clamp(metrics.radar?.problemSolving, 0, 100),
+        cultureFit: clamp(metrics.radar?.cultureFit, 0, 100),
+        leadership: clamp(metrics.radar?.leadership, 0, 100),
+      },
+      feedback: {
+        strengths: Array.isArray(metrics.feedback?.strengths)
+          ? metrics.feedback.strengths.slice(0, 5)
+          : ['表达清晰', '态度积极'],
+        improvements: Array.isArray(metrics.feedback?.improvements)
+          ? metrics.feedback.improvements.slice(0, 5)
+          : ['可以更多展示项目细节', '建议加强技术深度'],
+      },
+    };
+  }
+
+  /**
+   * 默认报告（AI 失败时的 fallback）
+   */
+  private getDefaultMetrics(): InterviewMetrics {
     return {
       overallScore: 75,
-      dimensions: {
-        technicalDepth: 75,
+      radar: {
+        technical: 75,
         communication: 80,
-        logicalThinking: 75,
-        projectExperience: 70,
-        stressResistance: 80,
+        problemSolving: 75,
+        cultureFit: 78,
+        leadership: 70,
       },
-      strengths: ['表达清晰', '态度积极'],
-      improvements: ['可以更多展示项目细节', '建议加强技术深度'],
-      detailedFeedback: '整体表现良好，建议继续加强技术深度和项目经验的展示。',
+      feedback: {
+        strengths: ['表达清晰', '态度积极'],
+        improvements: ['可以更多展示项目细节', '建议加强技术深度'],
+      },
     };
   }
 }

@@ -1,16 +1,14 @@
 /**
  * 面试模块
- * 处理 AI 模拟面试、SSE 流式对话
  */
 import { Module } from '@nestjs/common';
 import { InterviewController } from './interview.controller';
 import { InterviewService } from './interview.service';
-import { AuthModule } from '../auth/auth.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [UserModule],  // 导入 UserModule 以使用积分服务
   controllers: [InterviewController],
   providers: [InterviewService],
-  exports: [InterviewService],
 })
 export class InterviewModule {}

@@ -1,16 +1,14 @@
 /**
  * 简历模块
- * 处理简历上传、解析、AI 分析
  */
 import { Module } from '@nestjs/common';
 import { ResumeController } from './resume.controller';
 import { ResumeService } from './resume.service';
-import { AuthModule } from '../auth/auth.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [UserModule],  // 导入 UserModule 以使用积分服务
   controllers: [ResumeController],
   providers: [ResumeService],
-  exports: [ResumeService],
 })
 export class ResumeModule {}

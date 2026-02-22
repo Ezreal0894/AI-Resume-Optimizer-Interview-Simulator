@@ -30,6 +30,8 @@ export interface TokenResponse {
     email: string;
     name: string | null;
     plan: string;
+    credits: number;
+    tags: string[];
   };
 }
 
@@ -160,7 +162,14 @@ export class AuthService {
    * 生成 Token 对（Access + Refresh）
    * @private
    */
-  private async generateTokenPair(user: { id: string; email: string; name: string | null; plan: string }): Promise<TokenResponse> {
+  private async generateTokenPair(user: {
+    id: string;
+    email: string;
+    name: string | null;
+    plan: string;
+    credits: number;
+    tags: string[];
+  }): Promise<TokenResponse> {
     // 生成 Access Token（短效 15m）
     const accessToken = this.generateAccessToken(user.id, user.email);
     
@@ -182,6 +191,8 @@ export class AuthService {
         email: user.email,
         name: user.name,
         plan: user.plan,
+        credits: user.credits,
+        tags: user.tags,
       },
     };
   }
