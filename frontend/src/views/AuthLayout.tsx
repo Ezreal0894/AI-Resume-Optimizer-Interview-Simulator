@@ -36,7 +36,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ initialMode = 'login' }) => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError('');
     setIsLoading(true);
 
@@ -103,7 +104,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ initialMode = 'login' }) => {
             </div>
           )}
 
-          <div className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {mode === 'register' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Full Name</label>
@@ -130,6 +131,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ initialMode = 'login' }) => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all"
                   placeholder="john@example.com"
+                  required
                 />
               </div>
             </div>
@@ -144,12 +146,13 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ initialMode = 'login' }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all"
                   placeholder="••••••••"
+                  required
                 />
               </div>
             </div>
 
             <button 
-              onClick={handleSubmit}
+              type="submit"
               disabled={isLoading}
               className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -158,13 +161,14 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ initialMode = 'login' }) => {
 
             <div className="text-center">
               <button 
+                type="button"
                 onClick={() => handleNavigate(mode === 'login' ? 'register' : 'login')}
                 className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
               >
                 {mode === 'login' ? "Don't have an account? Sign up for free" : "Already have an account? Sign in"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </div>

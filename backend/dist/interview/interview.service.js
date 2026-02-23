@@ -16,7 +16,6 @@ const openai_1 = require("@langchain/openai");
 const messages_1 = require("@langchain/core/messages");
 const rxjs_1 = require("rxjs");
 const prisma_service_1 = require("../prisma/prisma.service");
-const user_service_1 = require("../user/user.service");
 const AI_CONFIG = {
     TIMEOUT: 60000,
     MAX_TOKENS: 2000,
@@ -24,10 +23,9 @@ const AI_CONFIG = {
     MAX_RETRIES: 2,
 };
 let InterviewService = class InterviewService {
-    constructor(prisma, config, userService) {
+    constructor(prisma, config) {
         this.prisma = prisma;
         this.config = config;
-        this.userService = userService;
         this.llm = new openai_1.ChatOpenAI({
             modelName: this.config.get('DEEPSEEK_MODEL', 'deepseek-chat'),
             openAIApiKey: this.config.get('DEEPSEEK_API_KEY'),
@@ -41,7 +39,6 @@ let InterviewService = class InterviewService {
         });
     }
     async createSession(dto, userId) {
-        await this.userService.deductCredits(userId, user_service_1.CREDIT_COSTS.INTERVIEW_SESSION, '创建面试会话');
         const session = await this.prisma.interviewSession.create({
             data: {
                 userId,
@@ -404,7 +401,6 @@ exports.InterviewService = InterviewService;
 exports.InterviewService = InterviewService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        config_1.ConfigService,
-        user_service_1.UserService])
+        config_1.ConfigService])
 ], InterviewService);
 //# sourceMappingURL=interview.service.js.map

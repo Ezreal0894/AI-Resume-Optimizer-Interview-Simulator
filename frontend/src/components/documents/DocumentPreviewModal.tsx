@@ -37,6 +37,43 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ isOpen, onC
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.1, 2));
   const handleZoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
 
+  const handleDownload = () => {
+    // 创建一个包含文档内容的 Blob 并下载
+    const content = document.rawContent || `Document: ${document.title}\n\nNo content available for download.`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = `${document.title}.txt`;
+    window.document.body.appendChild(link);
+    link.click();
+    window.document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: document.title,
+          text: document.aiSummary || `Check out this document: ${document.title}`,
+        });
+      } catch (error) {
+        // 用户取消分享或不支持
+        console.log('Share cancelled or not supported');
+      }
+    } else {
+      // 回退：复制到剪贴板
+      const text = `${document.title}\n\n${document.aiSummary || ''}`;
+      await navigator.clipboard.writeText(text);
+      alert('Document info copied to clipboard!');
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -193,14 +230,23 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ isOpen, onC
 
               {/* Actions Footer */}
               <div className="p-6 border-t border-slate-100 bg-slate-50 space-y-3 z-10 sticky bottom-0">
-                <button className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                <button 
+                  onClick={handleDownload}
+                  className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
                   <Download className="w-4 h-4" /> Download File
                 </button>
                 <div className="grid grid-cols-2 gap-3">
-                  <button className="py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                  <button 
+                    onClick={handlePrint}
+                    className="py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
                     <Printer className="w-4 h-4" /> Print
                   </button>
-                  <button className="py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                  <button 
+                    onClick={handleShare}
+                    className="py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
                     <Share2 className="w-4 h-4" /> Share
                   </button>
                 </div>

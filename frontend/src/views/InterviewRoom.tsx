@@ -6,7 +6,8 @@ import {
   Video, 
   Send, 
   User, 
-  Bot 
+  Bot,
+  AlertCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +19,7 @@ const InterviewView = () => {
   const navigate = useNavigate();
   const [isRecording, setIsRecording] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
+  const [initError, setInitError] = useState<string | null>(null);
   const streamControllerRef = useRef<StreamController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -54,8 +56,10 @@ const InterviewView = () => {
           });
           setSession(response.data.data.sessionId, 'Frontend Engineer');
           addMessage('assistant', response.data.data.greeting);
-        } catch (error) {
+          setInitError(null);
+        } catch (error: any) {
           console.error('Failed to create session:', error);
+          setInitError(error.response?.data?.message || '创建面试会话失败，请重试');
         }
       }
     };
@@ -138,6 +142,10 @@ const InterviewView = () => {
     navigate('/dashboard/report');
   };
 
+  const handleVideoClick = () => {
+    alert('视频功能开发中，敬请期待！');
+  };
+
   const displayMessages = [...messages];
   if (streamingContent) {
     displayMessages.push({
@@ -150,6 +158,20 @@ const InterviewView = () => {
 
   return (
     <div className="h-full flex flex-col md:flex-row overflow-hidden bg-slate-50 relative z-10 pb-20 md:pb-0">
+      {/* Error Banner */}
+      {initError && (
+        <div className="absolute top-4 left-4 right-4 z-50 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 shadow-lg">
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700 flex-1">{initError}</p>
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="px-4 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+          >
+            返回
+          </button>
+        </div>
+      )}
+
       {/* Main Video Area */}
       <div className="flex-none md:flex-1 h-[35vh] md:h-auto flex flex-col relative p-4 md:p-6 z-10">
         <div className="flex-1 bg-slate-900 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden flex items-center justify-center group">
@@ -218,7 +240,11 @@ const InterviewView = () => {
             <PhoneOff className="w-8 h-8" />
           </button>
 
-          <button className="w-16 h-16 rounded-full bg-white/40 backdrop-blur-xl text-slate-600 border border-white/40 flex items-center justify-center shadow-lg hover:bg-white hover:scale-110 transition-all duration-300">
+          <button 
+            onClick={handleVideoClick}
+            className="w-16 h-16 rounded-full bg-white/40 backdrop-blur-xl text-slate-600 border border-white/40 flex items-center justify-center shadow-lg hover:bg-white hover:scale-110 transition-all duration-300 cursor-pointer"
+            title="视频功能开发中"
+          >
             <Video className="w-7 h-7" />
           </button>
         </div>
@@ -292,7 +318,11 @@ const InterviewView = () => {
             <PhoneOff className="w-6 h-6" />
           </button>
 
-          <button className="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center">
+          <button 
+            onClick={handleVideoClick}
+            className="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center cursor-pointer"
+            title="视频功能开发中"
+          >
             <Video className="w-5 h-5" />
           </button>
         </div>

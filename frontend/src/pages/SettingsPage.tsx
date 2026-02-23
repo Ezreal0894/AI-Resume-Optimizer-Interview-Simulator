@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { userApi, UserProfile } from '../api/user';
+import { authApi } from '../api/auth';
 import SettingsView from '../views/SettingsView';
 
 export default function SettingsPage() {
@@ -29,9 +30,15 @@ export default function SettingsPage() {
     fetchProfile();
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout API failed:', error);
+    } finally {
+      logout();
+      navigate('/');
+    }
   };
 
   const handleSaveTags = async (tags: string[]) => {

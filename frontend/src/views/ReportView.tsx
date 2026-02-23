@@ -2,7 +2,8 @@ import React from 'react';
 import { 
   CheckCircle2, 
   Sparkles, 
-  BarChart3 
+  BarChart3,
+  Download
 } from 'lucide-react';
 import { 
   Radar, 
@@ -43,6 +44,11 @@ const ReportsView = () => {
   ];
   const COLORS = ['#4F46E5', '#E2E8F0'];
 
+  const handleDownloadPDF = () => {
+    // 使用浏览器打印功能生成 PDF
+    window.print();
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto h-full overflow-y-auto relative z-10 pb-24 md:pb-8">
       {/* Ambient Background Glow */}
@@ -56,7 +62,11 @@ const ReportsView = () => {
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-1 md:mb-2 tracking-tight">Performance Report</h2>
           <p className="text-base md:text-lg text-slate-500">Analysis from your latest mock interview session.</p>
         </div>
-        <button className="w-full md:w-auto px-6 h-12 md:h-auto md:py-3 bg-white/60 backdrop-blur-xl border border-white/40 rounded-full text-sm font-bold text-slate-700 shadow-lg hover:bg-white hover:scale-105 transition-all flex items-center justify-center">
+        <button 
+          onClick={handleDownloadPDF}
+          className="w-full md:w-auto px-6 h-12 md:h-auto md:py-3 bg-white/60 backdrop-blur-xl border border-white/40 rounded-full text-sm font-bold text-slate-700 shadow-lg hover:bg-white hover:scale-105 transition-all flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <Download className="w-4 h-4" />
           Download PDF
         </button>
       </div>

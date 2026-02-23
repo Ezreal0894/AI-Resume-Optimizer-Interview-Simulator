@@ -14,7 +14,6 @@ export interface UserProfile {
   avatarUrl: string | null;
   tags: string[];
   plan: string;
-  credits: number;
   createdAt: string;
 }
 
@@ -56,7 +55,16 @@ export const userApi = {
   saveOnboarding: (tags: string[]) =>
     apiClient.post<{ message: string; data: UserProfile }>('/user/onboarding', { tags }),
 
-  // 获取积分
-  getCredits: () =>
-    apiClient.get<{ data: { credits: number } }>('/user/credits'),
+  // 获取用户最近活动
+  getActivity: (limit: number = 10) =>
+    apiClient.get<{ data: ActivityItem[] }>('/user/activity', { params: { limit } }),
 };
+
+export interface ActivityItem {
+  id: string;
+  type: 'interview' | 'resume';
+  title: string;
+  date: string;
+  score: number;
+  sourceId: string;
+}

@@ -1,6 +1,6 @@
 /**
  * 用户控制器
- * 处理 Onboarding、用户信息、积分查询、头像管理、活动记录
+ * 🔄 v2.1：免费化重构 - 移除积分相关接口
  */
 import {
   Controller,
@@ -131,16 +131,6 @@ export class UserController {
   async deleteAvatar(@CurrentUser('id') userId: string) {
     await this.userService.deleteAvatar(userId);
     return { message: '头像已删除' };
-  }
-
-  /**
-   * 获取积分余额
-   * GET /api/user/credits
-   */
-  @Get('credits')
-  async getCredits(@CurrentUser('id') userId: string) {
-    const credits = await this.userService.getCredits(userId);
-    return { data: { credits } };
   }
 
   /**

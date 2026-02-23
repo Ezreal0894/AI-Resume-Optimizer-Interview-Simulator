@@ -6,20 +6,19 @@ export declare class UserController {
     saveOnboarding(dto: OnboardingDto, userId: string): Promise<{
         message: string;
         data: {
-            id: string;
             email: string;
             name: string | null;
+            id: string;
             tags: string[];
             plan: import(".prisma/client").$Enums.UserPlan;
-            credits: number;
         };
     }>;
     getProfile(userId: string): Promise<{
         data: {
             avatarUrl: string | null;
-            id: string;
             email: string;
             name: string | null;
+            id: string;
             title: string | null;
             bio: string | null;
             location: string | null;
@@ -27,15 +26,14 @@ export declare class UserController {
             avatar: string | null;
             tags: string[];
             plan: import(".prisma/client").$Enums.UserPlan;
-            credits: number;
             createdAt: Date;
         };
     }>;
     updateProfile(dto: UpdateProfileDto, userId: string): Promise<{
         message: string;
         data: {
-            id: string;
             name: string | null;
+            id: string;
             title: string | null;
             bio: string | null;
             location: string | null;
@@ -56,11 +54,6 @@ export declare class UserController {
     }>;
     deleteAvatar(userId: string): Promise<{
         message: string;
-    }>;
-    getCredits(userId: string): Promise<{
-        data: {
-            credits: number;
-        };
     }>;
     getRecentActivity(userId: string, limit?: string): Promise<{
         data: ({

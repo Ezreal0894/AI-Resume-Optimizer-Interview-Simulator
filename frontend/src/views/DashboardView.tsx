@@ -1,18 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FileText, 
   Mic, 
   Clock, 
-  ChevronRight 
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
-import { RECENT_ACTIVITY } from '../constants';
+import { userApi, ActivityItem } from '../api/user';
 
 const DashboardView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(true);
+
+  // 获取最近活动
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const activityRes = await userApi.getActivity(5);
+        setRecentActivity(activityRes.data.data || []);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        setRecentActivity([]);
+      } finally {
+        setIsLoadingActivity(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const handleViewChange = (view: string) => {
     if (view === 'documents') {
@@ -94,40 +113,56 @@ const DashboardView: React.FC = () => {
         <div className="md:col-span-12 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-xl shadow-indigo-500/5 overflow-hidden">
           <div className="px-5 py-4 md:px-8 md:py-6 border-b border-white/20 flex justify-between items-center bg-white/40 backdrop-blur-md">
             <h3 className="text-base md:text-lg font-bold text-slate-900">Recent Activity</h3>
-            <button className="text-xs md:text-sm text-indigo-600 hover:text-indigo-700 font-bold px-3 py-1.5 md:px-4 md:py-2 bg-indigo-50/50 rounded-full hover:bg-indigo-100/50 transition-colors">View All</button>
+            <button 
+              onClick={() => navigate('/dashboard/documents')}
+              className="text-xs md:text-sm text-indigo-600 hover:text-indigo-700 font-bold px-3 py-1.5 md:px-4 md:py-2 bg-indigo-50/50 rounded-full hover:bg-indigo-100/50 transition-colors cursor-pointer"
+            >
+              View All
+            </button>
           </div>
           <div className="divide-y divide-slate-100/50">
-            {RECENT_ACTIVITY.map((activity) => (
-              <div key={activity.id} className="px-5 py-4 md:px-8 md:py-5 flex flex-col md:flex-row md:items-center justify-between hover:bg-white/40 transition-colors group gap-3 md:gap-0">
-                <div className="flex items-center gap-4 md:gap-5">
-                  <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0 ${
-                    activity.type === 'interview' 
-                      ? 'bg-emerald-100/80 text-emerald-600' 
-                      : 'bg-indigo-100/80 text-indigo-600'
-                  }`}>
-                    {activity.type === 'interview' ? <Mic className="w-5 h-5 md:w-6 md:h-6" /> : <FileText className="w-5 h-5 md:w-6 md:h-6" />}
+            {isLoadingActivity ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+              </div>
+            ) : recentActivity.length > 0 ? (
+              recentActivity.map((activity) => (
+                <div key={activity.id} className="px-5 py-4 md:px-8 md:py-5 flex flex-col md:flex-row md:items-center justify-between hover:bg-white/40 transition-colors group gap-3 md:gap-0 cursor-pointer" onClick={() => activity.type === 'interview' ? navigate('/dashboard/report') : navigate('/dashboard/documents')}>
+                  <div className="flex items-center gap-4 md:gap-5">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0 ${
+                      activity.type === 'interview' 
+                        ? 'bg-emerald-100/80 text-emerald-600' 
+                        : 'bg-indigo-100/80 text-indigo-600'
+                    }`}>
+                      {activity.type === 'interview' ? <Mic className="w-5 h-5 md:w-6 md:h-6" /> : <FileText className="w-5 h-5 md:w-6 md:h-6" />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm md:text-base line-clamp-1">{activity.title}</p>
+                      <div className="flex items-center gap-2 text-xs md:text-sm text-slate-500 mt-0.5 md:mt-1">
+                        <Clock className="w-3 h-3 md:w-4 md:h-4" /> {activity.date}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-900 text-sm md:text-base line-clamp-1">{activity.title}</p>
-                    <div className="flex items-center gap-2 text-xs md:text-sm text-slate-500 mt-0.5 md:mt-1">
-                      <Clock className="w-3 h-3 md:w-4 md:h-4" /> {activity.date}
+                  <div className="flex items-center gap-3 self-end md:self-auto">
+                    <span className="text-xs md:text-sm font-semibold text-slate-600">Score</span>
+                    <div className={`px-3 py-1 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-bold border ${
+                      activity.score >= 90 
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                        : activity.score >= 80 
+                          ? 'bg-indigo-50 text-indigo-600 border-indigo-200' 
+                          : 'bg-amber-50 text-amber-600 border-amber-200'
+                    }`}>
+                      {activity.score}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 self-end md:self-auto">
-                  <span className="text-xs md:text-sm font-semibold text-slate-600">Score</span>
-                  <div className={`px-3 py-1 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-bold border ${
-                    activity.score >= 90 
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
-                      : activity.score >= 80 
-                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200' 
-                        : 'bg-amber-50 text-amber-600 border-amber-200'
-                  }`}>
-                    {activity.score}
-                  </div>
-                </div>
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <p className="text-slate-500 text-sm">No recent activity yet</p>
+                <p className="text-slate-400 text-xs mt-1">Start an interview or upload a resume to get started</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

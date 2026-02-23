@@ -9,7 +9,6 @@ import {
   Download, 
   Trash2, 
   FolderOpen,
-  MoreVertical,
   Pin,
   PinOff,
   Loader2
@@ -130,12 +129,30 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
   });
 
   const handleDelete = async (id: string) => {
+    // 添加删除确认
+    const confirmed = window.confirm('确定要删除这个文档吗？此操作无法撤销。');
+    if (!confirmed) return;
+    
     try {
       await deleteDocument(id);
       setDocuments(prev => prev.filter(doc => doc.id !== id));
     } catch (error) {
       console.error('Failed to delete document:', error);
     }
+  };
+
+  const handleDownload = (doc: Document) => {
+    // 创建下载
+    const content = doc.rawContent || `Document: ${doc.title}\n\nNo content available.`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = `${doc.title}.txt`;
+    window.document.body.appendChild(link);
+    link.click();
+    window.document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handlePin = async (id: string) => {
@@ -246,9 +263,6 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
                        doc.type === 'optimized' ? <FileCheck className="w-6 h-6" /> : 
                        <FileText className="w-6 h-6" />}
                     </div>
-                    <button className="md:hidden p-2 text-slate-400 hover:bg-slate-50 rounded-full">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
                   </div>
 
                   <h3 className="font-bold text-slate-900 text-lg mb-1 line-clamp-2 leading-tight" title={doc.title}>
@@ -295,7 +309,7 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
                     >
                       <Eye className="w-5 h-5" />
                     </button>
-                    <button className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors" title="Download">
+                    <button className="p-2 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer" title="Download" onClick={() => handleDownload(doc)}>
                       <Download className="w-5 h-5" />
                     </button>
                     <button 
@@ -312,12 +326,15 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
                 <div className="md:hidden border-t border-slate-100 p-3 flex justify-around bg-slate-50/50">
                    <button 
                       onClick={() => handlePreview(doc)}
-                      className="flex items-center gap-2 text-xs font-bold text-slate-600 px-4 py-2 rounded-lg hover:bg-white"
+                      className="flex items-center gap-2 text-xs font-bold text-slate-600 px-4 py-2 rounded-lg hover:bg-white cursor-pointer"
                    >
                       <Eye className="w-4 h-4" /> Preview
                    </button>
-                   <button className="flex items-center gap-2 text-xs font-bold text-indigo-600 px-4 py-2 rounded-lg hover:bg-white">
-                      <Download className="w-4 h-4" />
+                   <button 
+                      onClick={() => handleDownload(doc)}
+                      className="flex items-center gap-2 text-xs font-bold text-indigo-600 px-4 py-2 rounded-lg hover:bg-white cursor-pointer"
+                   >
+                      <Download className="w-4 h-4" /> Download
                    </button>
                 </div>
 

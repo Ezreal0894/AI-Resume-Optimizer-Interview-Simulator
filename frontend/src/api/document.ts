@@ -49,7 +49,7 @@ export async function toggleDocumentPin(id: string): Promise<{ id: string; isPin
 }
 
 /**
- * 上传文档（简历）
+ * 上传文档（简历）并分析
  * @param file 文件
  * @param targetRole 目标职位（可选，默认"通用职位"）
  */
@@ -58,7 +58,7 @@ export async function uploadDocument(file: File, targetRole?: string): Promise<a
   formData.append('file', file);
   formData.append('targetRole', targetRole || '通用职位');
   
-  const response = await apiClient.post('/resume/upload', formData, {
+  const response = await apiClient.post('/resume/analyze', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

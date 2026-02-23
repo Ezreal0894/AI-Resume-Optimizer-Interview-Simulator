@@ -1,6 +1,6 @@
 /**
  * 面试服务
- * 🔄 v2.0：前端契约对齐的雷达图 5 维度、积分补偿
+ * 🔄 v2.1：免费化重构 - 移除积分系统
  */
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +13,6 @@ import {
 } from '@langchain/core/messages';
 import { Observable, Subject } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserService, CREDIT_COSTS } from '../user/user.service';
 import { CreateSessionDto, InterviewMetrics, TrendDataPoint } from './dto/interview.dto';
 
 // SSE 消息事件类型
@@ -43,7 +42,6 @@ export class InterviewService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly userService: UserService,
   ) {
     this.llm = new ChatOpenAI({
       modelName: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-chat'),
@@ -59,16 +57,9 @@ export class InterviewService {
   }
 
   /**
-   * 创建面试会话（扣除积分）
+   * 创建面试会话
    */
   async createSession(dto: CreateSessionDto, userId: string) {
-    // 检查并扣除积分
-    await this.userService.deductCredits(
-      userId,
-      CREDIT_COSTS.INTERVIEW_SESSION,
-      '创建面试会话',
-    );
-
     const session = await this.prisma.interviewSession.create({
       data: {
         userId,

@@ -72,10 +72,6 @@ let UserController = class UserController {
         await this.userService.deleteAvatar(userId);
         return { message: '头像已删除' };
     }
-    async getCredits(userId) {
-        const credits = await this.userService.getCredits(userId);
-        return { data: { credits } };
-    }
     async getRecentActivity(userId, limit) {
         const maxItems = Math.min(parseInt(limit || '10', 10) || 10, 50);
         const activities = await this.userService.getRecentActivity(userId, maxItems);
@@ -130,13 +126,6 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "deleteAvatar", null);
-__decorate([
-    (0, common_1.Get)('credits'),
-    __param(0, (0, current_user_decorator_1.CurrentUser)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], UserController.prototype, "getCredits", null);
 __decorate([
     (0, common_1.Get)('activity'),
     __param(0, (0, current_user_decorator_1.CurrentUser)('id')),

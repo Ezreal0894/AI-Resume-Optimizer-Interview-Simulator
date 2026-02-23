@@ -44,5 +44,5 @@ export const authApi = {
 
   // 获取当前用户
   getCurrentUser: () =>
-    apiClient.post<{ user: AuthResponse['user'] }>('/auth/me'),
+    apiClient.get<{ user: AuthResponse['user'] }>('/auth/me'),
 };

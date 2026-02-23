@@ -19,7 +19,6 @@ const openai_1 = require("@langchain/openai");
 const messages_1 = require("@langchain/core/messages");
 const pdf_parse_1 = __importDefault(require("pdf-parse"));
 const prisma_service_1 = require("../prisma/prisma.service");
-const user_service_1 = require("../user/user.service");
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
     'application/pdf',
@@ -32,10 +31,9 @@ const AI_CONFIG = {
     MAX_TOKENS: 4000,
 };
 let ResumeService = class ResumeService {
-    constructor(prisma, config, userService) {
+    constructor(prisma, config) {
         this.prisma = prisma;
         this.config = config;
-        this.userService = userService;
         this.llm = new openai_1.ChatOpenAI({
             modelName: this.config.get('DEEPSEEK_MODEL', 'deepseek-chat'),
             openAIApiKey: this.config.get('DEEPSEEK_API_KEY'),
@@ -49,7 +47,6 @@ let ResumeService = class ResumeService {
     }
     async analyzeResume(file, userId, targetRole, targetJd) {
         this.validateFile(file);
-        await this.userService.deductCredits(userId, user_service_1.CREDIT_COSTS.RESUME_ANALYSIS, '简历分析');
         let resumeId = null;
         try {
             const rawContent = await this.parseFileInMemory(file);
@@ -91,8 +88,7 @@ let ResumeService = class ResumeService {
             };
         }
         catch (error) {
-            console.error('Resume analysis failed, refunding credits:', error);
-            await this.userService.refundCredits(userId, user_service_1.CREDIT_COSTS.RESUME_ANALYSIS, '简历分析失败退款');
+            console.error('Resume analysis failed:', error);
             if (resumeId) {
                 await this.prisma.resume.update({
                     where: { id: resumeId },
@@ -102,7 +98,7 @@ let ResumeService = class ResumeService {
             if (error instanceof common_1.BadRequestException) {
                 throw error;
             }
-            throw new common_1.InternalServerErrorException('简历分析失败，积分已退还，请稍后重试');
+            throw new common_1.InternalServerErrorException('简历分析失败，请稍后重试');
         }
     }
     async getUserResumes(userId) {
@@ -288,7 +284,6 @@ exports.ResumeService = ResumeService;
 exports.ResumeService = ResumeService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        config_1.ConfigService,
-        user_service_1.UserService])
+        config_1.ConfigService])
 ], ResumeService);
 //# sourceMappingURL=resume.service.js.map

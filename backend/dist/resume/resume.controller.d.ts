@@ -19,19 +19,23 @@ export declare class ResumeController {
     getResumeList(userId: string): Promise<{
         data: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: import(".prisma/client").$Enums.ResumeStatus;
+            isPinned: boolean;
             fileName: string;
             fileSize: number;
             targetRole: string | null;
-            status: import(".prisma/client").$Enums.ResumeStatus;
-            isPinned: boolean;
-            createdAt: Date;
-            updatedAt: Date;
         }[];
     }>;
     getResumeDetail(resumeId: string, userId: string): Promise<{
         data: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
             userId: string;
+            status: import(".prisma/client").$Enums.ResumeStatus;
+            isPinned: boolean;
             fileName: string;
             fileSize: number;
             mimeType: string;
@@ -39,10 +43,6 @@ export declare class ResumeController {
             targetRole: string | null;
             targetJd: string | null;
             analysisReport: import("@prisma/client/runtime/library").JsonValue | null;
-            status: import(".prisma/client").$Enums.ResumeStatus;
-            isPinned: boolean;
-            createdAt: Date;
-            updatedAt: Date;
         };
     }>;
     togglePin(resumeId: string, userId: string): Promise<{

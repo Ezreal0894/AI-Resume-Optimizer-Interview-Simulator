@@ -1,7 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Observable } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserService } from '../user/user.service';
 import { CreateSessionDto, InterviewMetrics, TrendDataPoint } from './dto/interview.dto';
 export interface SSEMessageEvent {
     data: string;
@@ -14,9 +13,8 @@ interface ChatMessage {
 export declare class InterviewService {
     private readonly prisma;
     private readonly config;
-    private readonly userService;
     private llm;
-    constructor(prisma: PrismaService, config: ConfigService, userService: UserService);
+    constructor(prisma: PrismaService, config: ConfigService);
     createSession(dto: CreateSessionDto, userId: string): Promise<{
         sessionId: string;
         greeting: string;

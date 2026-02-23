@@ -9,14 +9,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserService = exports.CREDIT_COSTS = void 0;
+exports.UserService = void 0;
 const common_1 = require("@nestjs/common");
-const payment_required_exception_1 = require("../common/exceptions/payment-required.exception");
 const prisma_service_1 = require("../prisma/prisma.service");
-exports.CREDIT_COSTS = {
-    RESUME_ANALYSIS: 5,
-    INTERVIEW_SESSION: 5,
-};
 let UserService = class UserService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -31,7 +26,6 @@ let UserService = class UserService {
                 name: true,
                 tags: true,
                 plan: true,
-                credits: true,
             },
         });
         return user;
@@ -50,7 +44,6 @@ let UserService = class UserService {
                 avatar: true,
                 tags: true,
                 plan: true,
-                credits: true,
                 createdAt: true,
             },
         });
@@ -104,51 +97,6 @@ let UserService = class UserService {
             where: { id: userId },
             data: { avatar: null },
         });
-    }
-    async deductCredits(userId, cost, reason) {
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { credits: true },
-        });
-        if (!user) {
-            throw new common_1.NotFoundException('用户不存在');
-        }
-        if (user.credits < cost) {
-            throw new payment_required_exception_1.PaymentRequiredException(`积分不足，${reason}需要 ${cost} 积分，当前余额 ${user.credits}`);
-        }
-        const updated = await this.prisma.user.update({
-            where: { id: userId },
-            data: { credits: { decrement: cost } },
-            select: { credits: true },
-        });
-        return updated.credits;
-    }
-    async getCredits(userId) {
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { credits: true },
-        });
-        if (!user) {
-            throw new common_1.NotFoundException('用户不存在');
-        }
-        return user.credits;
-    }
-    async addCredits(userId, amount) {
-        const updated = await this.prisma.user.update({
-            where: { id: userId },
-            data: { credits: { increment: amount } },
-            select: { credits: true },
-        });
-        return updated.credits;
-    }
-    async refundCredits(userId, amount, reason) {
-        console.log(`Refunding ${amount} credits to user ${userId}: ${reason}`);
-        const updated = await this.prisma.user.update({
-            where: { id: userId },
-            data: { credits: { increment: amount } },
-            select: { credits: true },
-        });
-        return updated.credits;
     }
     async getRecentActivity(userId, limit = 10) {
         const [interviews, resumes] = await Promise.all([

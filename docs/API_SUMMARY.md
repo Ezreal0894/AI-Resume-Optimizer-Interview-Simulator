@@ -1,5 +1,7 @@
 # API 接口文档摘要
 
+> 🔄 v2.1 免费化版本 - 所有功能免费开放，无积分限制
+
 ## 🔐 认证模块 (Auth)
 
 ### POST /api/auth/register
@@ -20,7 +22,6 @@ Response:
     "email": "user@example.com",
     "name": "用户名",
     "plan": "FREE",
-    "credits": 50,
     "tags": []
   }
 }
@@ -64,8 +65,7 @@ Response:
     "email": "user@example.com",
     "name": "用户名",
     "tags": ["Frontend Dev", "Full Stack"],
-    "plan": "FREE",
-    "credits": 50
+    "plan": "FREE"
   }
 }
 ```
@@ -86,7 +86,6 @@ Response:
     "avatarUrl": "https://...",
     "tags": ["Frontend Dev", "Full Stack"],
     "plan": "FREE",
-    "credits": 50,
     "createdAt": "2026-02-20T..."
   }
 }
@@ -160,9 +159,6 @@ Response:
 }
 ```
 
-### GET /api/user/credits
-获取积分余额（需认证）
-
 ### GET /api/user/activity
 获取用户最近活动（需认证）
 ```json
@@ -218,20 +214,6 @@ Response:
       "sourceType": "resume",
       "ownerName": "John Doe",
       "aiSummary": "Resume analysis complete. Overall match score: 85%. Key strengths: React experience, TypeScript proficiency."
-    },
-    {
-      "id": "interview-cuid2",
-      "title": "Frontend Engineer 面试报告",
-      "type": "report",
-      "fileType": "report",
-      "size": "-",
-      "date": "Yesterday",
-      "tags": [{ "label": "Excellent", "color": "emerald" }],
-      "isPinned": true,
-      "sourceId": "cuid2",
-      "sourceType": "interview",
-      "ownerName": "John Doe",
-      "aiSummary": "Interview performance score: 88%. Strong communication skills and technical knowledge demonstrated."
     }
   ]
 }
@@ -239,39 +221,21 @@ Response:
 
 ### DELETE /api/documents/:id
 删除文档（需认证）
-- id 格式: `resume-{resumeId}` 或 `interview-{sessionId}`
-```json
-Response:
-{
-  "message": "文档已删除"
-}
-```
 
 ### PATCH /api/documents/:id/pin
 切换文档置顶状态（需认证）
-- id 格式: `resume-{resumeId}` 或 `interview-{sessionId}`
-```json
-Response:
-{
-  "data": {
-    "id": "resume-cuid1",
-    "isPinned": true
-  }
-}
-```
 
 ---
 
 ## 📄 简历模块 (Resume)
 
 ### POST /api/resume/analyze
-上传并分析简历（支持 JD 对标）
+上传并分析简历（需认证，免费）
 - Content-Type: multipart/form-data
-- 扣除 5 积分
 
 ```
 Request (form-data):
-- file: 简历文件 (PDF/DOCX, 最大 5MB)
+- file: 简历文件 (PDF/DOCX, 最大 10MB)
 - targetRole: "前端工程师"
 - targetJd: "职位描述长文本..."
 
@@ -287,16 +251,11 @@ Response:
       "createdAt": "2026-02-22T..."
     },
     "analysis": {
-      "matchScore": 85,
-      "missingKeywords": ["微服务", "Docker"],
-      "highlights": ["React 经验丰富", "项目经历完整"],
-      "improvements": [
-        {
-          "original": "负责项目开发",
-          "improved": "主导完成 XX 项目，提升性能 30%",
-          "reason": "量化成果更有说服力"
-        }
-      ]
+      "overallScore": 85,
+      "atsCompatibility": { "score": 90, "suggestions": ["..."] },
+      "keywordAnalysis": { "matched": ["React"], "missing": ["AWS"] },
+      "structureAnalysis": { "sections": ["Experience"], "improvements": ["..."] },
+      "contentSuggestions": ["量化成果", "添加指标"]
     }
   }
 }
@@ -313,8 +272,7 @@ Response:
 ## 🎤 面试模块 (Interview)
 
 ### POST /api/interview/session
-创建面试会话
-- 扣除 5 积分
+创建面试会话（需认证，免费）
 
 ```json
 Request:
@@ -336,60 +294,12 @@ Response:
 
 ### POST /api/interview/chat/:sessionId/stream
 SSE 流式对话（需认证）
-```json
-Request:
-{
-  "messages": [
-    { "role": "system", "content": "..." },
-    { "role": "assistant", "content": "..." },
-    { "role": "user", "content": "用户回答" }
-  ]
-}
-
-Response (SSE):
-data: {"content": "AI", "done": false}
-data: {"content": "回复", "done": false}
-data: {"content": "", "done": true}
-```
 
 ### POST /api/interview/session/:sessionId/end
 结束面试并生成报告（需认证）
-```json
-Response:
-{
-  "message": "面试已结束，报告已生成",
-  "data": {
-    "sessionId": "cuid",
-    "metrics": {
-      "overallScore": 85,
-      "radar": {
-        "tech": 80,
-        "comm": 90,
-        "logic": 85,
-        "exp": 75,
-        "pressure": 88
-      },
-      "feedback": {
-        "strengths": ["表达清晰", "技术扎实"],
-        "weaknesses": ["项目细节可以更丰富"]
-      }
-    }
-  }
-}
-```
 
 ### GET /api/interview/history/trend
 获取历史趋势数据（最近 10 次）
-```json
-Response:
-{
-  "data": [
-    { "sessionId": "cuid1", "overallScore": 75, "createdAt": "2026-02-20T..." },
-    { "sessionId": "cuid2", "overallScore": 80, "createdAt": "2026-02-21T..." },
-    { "sessionId": "cuid3", "overallScore": 85, "createdAt": "2026-02-22T..." }
-  ]
-}
-```
 
 ### GET /api/interview/sessions
 获取面试会话列表（需认证）
@@ -405,18 +315,6 @@ Response:
 |--------|------|
 | 400 | 请求参数错误 |
 | 401 | 未认证或 Token 过期 |
-| 402 | 积分不足 |
 | 404 | 资源不存在 |
 | 409 | 资源冲突（如邮箱已注册） |
 | 500 | 服务器内部错误 |
-
----
-
-## 💰 积分系统
-
-| 操作 | 消耗积分 |
-|------|----------|
-| 简历分析 | 5 |
-| 创建面试会话 | 5 |
-
-新用户默认 50 积分。
