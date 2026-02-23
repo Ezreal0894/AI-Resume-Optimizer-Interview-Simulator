@@ -15,8 +15,8 @@ const DashboardView: React.FC = () => {
   const { user } = useAuthStore();
 
   const handleViewChange = (view: string) => {
-    if (view === 'resume') {
-      navigate('/dashboard/resume');
+    if (view === 'documents') {
+      navigate('/dashboard/documents');
     } else if (view === 'interview') {
       navigate('/dashboard/interview');
     } else if (view === 'reports') {
@@ -41,12 +41,12 @@ const DashboardView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 auto-rows-[minmax(160px,auto)] md:auto-rows-[minmax(180px,auto)]">
-        {/* Resume Card - Large Bento Item */}
+        {/* Documents Card - Large Bento Item */}
         <motion.div 
           whileHover={{ scale: 1.02, y: -4 }}
           whileTap={{ scale: 0.98 }}
           transition={{ type: 'spring', stiffness: 300 }}
-          onClick={() => handleViewChange('resume')}
+          onClick={() => handleViewChange('documents')}
           className="md:col-span-7 bg-white/60 backdrop-blur-2xl p-5 md:p-8 rounded-3xl border border-white/40 shadow-xl shadow-indigo-500/5 hover:shadow-indigo-500/10 transition-all cursor-pointer group relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-48 md:w-64 h-48 md:h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:opacity-70"></div>
@@ -56,11 +56,11 @@ const DashboardView: React.FC = () => {
               <div className="w-12 h-12 md:w-14 md:h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:bg-indigo-500/20 transition-colors backdrop-blur-md">
                 <FileText className="w-6 h-6 md:w-7 md:h-7 text-indigo-600" />
               </div>
-              <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Optimize Resume</h3>
-              <p className="text-slate-500 text-sm md:text-lg max-w-md">Upload your CV for AI-powered analysis and ATS optimization suggestions.</p>
+              <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Document Library</h3>
+              <p className="text-slate-500 text-sm md:text-lg max-w-md">Upload and manage your resumes with AI-powered analysis and optimization.</p>
             </div>
             <div className="flex items-center text-indigo-600 font-bold text-sm md:text-base group-hover:translate-x-2 transition-transform mt-6 md:mt-8">
-              Start Optimization <ChevronRight className="w-4 h-4 md:w-5 md:h-5 ml-2" />
+              View Documents <ChevronRight className="w-4 h-4 md:w-5 md:h-5 ml-2" />
             </div>
           </div>
         </motion.div>

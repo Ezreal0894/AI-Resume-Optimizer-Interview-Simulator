@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, 
@@ -9,7 +8,9 @@ import {
   Bot, 
   Mic 
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
+import type { Easing } from 'motion';
+import ThemeToggle from '../components/theme/ThemeToggle';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ const LandingPage = () => {
     initial: { opacity: 0, y: 40 },
     whileInView: { opacity: 1, y: 0 },
     viewport: { once: true, margin: "-100px" },
-    transition: { duration: 0.6, ease: "easeOut" }
+    transition: { duration: 0.6, ease: "easeOut" as Easing }
   };
 
   const staggerContainer = {
@@ -42,25 +43,30 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-50 overflow-x-hidden transition-colors duration-500">
+      {/* Theme Toggle - Fixed Top Right */}
+      <div className="fixed top-6 right-6 z-[60]">
+        <ThemeToggle />
+      </div>
+
       {/* Header */}
       <motion.header 
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.5 }}
-        className="fixed top-0 w-full bg-white/70 backdrop-blur-xl border-b border-white/20 z-50"
+        className="fixed top-0 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-white/20 dark:border-slate-800/20 z-50 transition-colors duration-500"
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/20">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="font-semibold text-lg tracking-tight text-slate-900">AI Career Coach</span>
+            <span className="font-semibold text-lg tracking-tight text-slate-900 dark:text-white">AI Career Coach</span>
           </div>
           <div className="flex items-center gap-4">
             <button 
               onClick={() => handleNavigate('login')}
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               Log in
             </button>
@@ -85,14 +91,14 @@ const LandingPage = () => {
         >
           <motion.h1 
             variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
-            className="text-5xl md:text-6xl font-bold text-slate-900 tracking-tight leading-[1.1]"
+            className="text-5xl md:text-6xl font-bold text-slate-900 dark:text-white tracking-tight leading-[1.1]"
           >
             Reinvent Your Career Path <br />
-            <span className="text-indigo-600">With AI Intelligence</span>
+            <span className="text-indigo-600 dark:text-indigo-400">With AI Intelligence</span>
           </motion.h1>
           <motion.p 
             variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
-            className="text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed"
+            className="text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed"
           >
             The resume optimizer and immersive interview simulator used by millions of elites. Master your preparation with data-driven insights.
           </motion.p>
@@ -161,7 +167,7 @@ const LandingPage = () => {
       </section>
 
       {/* Features */}
-      <section className="py-24 bg-white border-t border-slate-100">
+      <section className="py-24 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 space-y-32">
           {/* Feature 1: Resume */}
           <motion.div 
@@ -188,8 +194,8 @@ const LandingPage = () => {
               <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
                 <FileText className="w-6 h-6 text-indigo-600" />
               </div>
-              <h2 className="text-3xl font-bold text-slate-900">Precision Resume Crafting</h2>
-              <p className="text-lg text-slate-500 leading-relaxed">
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Precision Resume Crafting</h2>
+              <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed">
                 Our AI analyzes your resume against thousands of successful profiles. Get instant feedback on formatting, keywords, and impact to pass ATS filters effortlessly.
               </p>
             </div>
@@ -224,8 +230,8 @@ const LandingPage = () => {
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Mic className="w-6 h-6 text-purple-600" />
               </div>
-              <h2 className="text-3xl font-bold text-slate-900">Conquer Interview Anxiety</h2>
-              <p className="text-lg text-slate-500 leading-relaxed">
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Conquer Interview Anxiety</h2>
+              <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed">
                 Practice with a realistic AI interviewer that adapts to your responses. Experience full audio-visual simulations that mimic top-tier tech interviews.
               </p>
             </div>
@@ -237,8 +243,8 @@ const LandingPage = () => {
             className="text-center max-w-3xl mx-auto space-y-12"
           >
             <div className="space-y-4">
-              <h2 className="text-3xl font-bold text-slate-900">Data-Driven Growth</h2>
-              <p className="text-lg text-slate-500">Visualize your progress with comprehensive radar charts and detailed performance metrics.</p>
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Data-Driven Growth</h2>
+              <p className="text-lg text-slate-500 dark:text-slate-400">Visualize your progress with comprehensive radar charts and detailed performance metrics.</p>
             </div>
             <div className="flex justify-center">
               <div className="relative w-64 h-64">

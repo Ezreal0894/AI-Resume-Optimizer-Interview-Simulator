@@ -32,4 +32,10 @@ export interface DocumentItem {
   sourceId: string;
   /** 原始记录类型 */
   sourceType: 'resume' | 'interview';
+  /** 文档所有者名称 */
+  ownerName?: string;
+  /** AI 生成的摘要 */
+  aiSummary?: string;
+  /** 文档原始文本内容 */
+  rawContent?: string;
 }

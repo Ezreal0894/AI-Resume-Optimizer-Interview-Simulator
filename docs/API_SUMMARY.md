@@ -53,7 +53,7 @@ Response: 同 register
 ```json
 Request:
 {
-  "tags": ["前端开发", "React", "TypeScript"]
+  "tags": ["Frontend Dev", "Full Stack", "AI / LLM Engineer"]
 }
 
 Response:
@@ -63,7 +63,7 @@ Response:
     "id": "cuid",
     "email": "user@example.com",
     "name": "用户名",
-    "tags": ["前端开发", "React", "TypeScript"],
+    "tags": ["Frontend Dev", "Full Stack"],
     "plan": "FREE",
     "credits": 50
   }
@@ -71,10 +71,194 @@ Response:
 ```
 
 ### GET /api/user/profile
-获取用户信息（需认证）
+获取用户完整资料（需认证）
+```json
+Response:
+{
+  "data": {
+    "id": "cuid",
+    "email": "john.doe@example.com",
+    "name": "John Doe",
+    "title": "Senior Frontend Engineer",
+    "bio": "Passionate about building accessible and performant web applications.",
+    "location": "San Francisco, CA",
+    "website": "johndoe.dev",
+    "avatarUrl": "https://...",
+    "tags": ["Frontend Dev", "Full Stack"],
+    "plan": "FREE",
+    "credits": 50,
+    "createdAt": "2026-02-20T..."
+  }
+}
+```
+
+### PUT /api/user/profile
+更新用户资料（需认证）
+```json
+Request:
+{
+  "name": "John Doe",
+  "title": "Senior Frontend Engineer",
+  "bio": "Passionate about building accessible and performant web applications.",
+  "location": "San Francisco, CA",
+  "website": "johndoe.dev"
+}
+
+Response:
+{
+  "message": "资料更新成功",
+  "data": {
+    "id": "cuid",
+    "name": "John Doe",
+    "title": "Senior Frontend Engineer",
+    "bio": "...",
+    "location": "San Francisco, CA",
+    "website": "johndoe.dev"
+  }
+}
+```
+
+### PUT /api/user/tags
+更新用户职业标签（需认证）
+```json
+Request:
+{
+  "tags": ["Frontend Dev", "Full Stack", "AI / LLM Engineer"]
+}
+
+Response:
+{
+  "message": "标签更新成功",
+  "data": {
+    "tags": ["Frontend Dev", "Full Stack", "AI / LLM Engineer"]
+  }
+}
+```
+
+### POST /api/user/avatar
+上传用户头像（需认证）
+- Content-Type: multipart/form-data
+```
+Request (form-data):
+- file: 头像文件 (JPG/PNG/GIF, 最大 800KB)
+
+Response:
+{
+  "message": "头像上传成功",
+  "data": {
+    "avatarUrl": "https://..."
+  }
+}
+```
+
+### DELETE /api/user/avatar
+删除用户头像（需认证）
+```json
+Response:
+{
+  "message": "头像已删除"
+}
+```
 
 ### GET /api/user/credits
 获取积分余额（需认证）
+
+### GET /api/user/activity
+获取用户最近活动（需认证）
+```json
+Query:
+- limit: 返回数量（默认 10，最大 50）
+
+Response:
+{
+  "data": [
+    {
+      "id": "interview-cuid1",
+      "type": "interview",
+      "title": "Frontend Engineer Mock Interview",
+      "date": "Yesterday",
+      "score": 88,
+      "sourceId": "cuid1"
+    },
+    {
+      "id": "resume-cuid2",
+      "type": "resume",
+      "title": "Resume_v4.pdf Optimization",
+      "date": "2 days ago",
+      "score": 92,
+      "sourceId": "cuid2"
+    }
+  ]
+}
+```
+
+---
+
+## 📁 文档库模块 (Documents)
+
+### GET /api/documents
+获取用户文档库（需认证）
+```json
+Query:
+- category: 分类筛选（all | resume | optimized | report，默认 all）
+
+Response:
+{
+  "data": [
+    {
+      "id": "resume-cuid1",
+      "title": "Senior_Frontend_Resume_v1.pdf",
+      "type": "resume",
+      "fileType": "pdf",
+      "size": "1.2 MB",
+      "date": "2 hours ago",
+      "tags": [{ "label": "Original", "color": "slate" }],
+      "isPinned": false,
+      "sourceId": "cuid1",
+      "sourceType": "resume",
+      "ownerName": "John Doe",
+      "aiSummary": "Resume analysis complete. Overall match score: 85%. Key strengths: React experience, TypeScript proficiency."
+    },
+    {
+      "id": "interview-cuid2",
+      "title": "Frontend Engineer 面试报告",
+      "type": "report",
+      "fileType": "report",
+      "size": "-",
+      "date": "Yesterday",
+      "tags": [{ "label": "Excellent", "color": "emerald" }],
+      "isPinned": true,
+      "sourceId": "cuid2",
+      "sourceType": "interview",
+      "ownerName": "John Doe",
+      "aiSummary": "Interview performance score: 88%. Strong communication skills and technical knowledge demonstrated."
+    }
+  ]
+}
+```
+
+### DELETE /api/documents/:id
+删除文档（需认证）
+- id 格式: `resume-{resumeId}` 或 `interview-{sessionId}`
+```json
+Response:
+{
+  "message": "文档已删除"
+}
+```
+
+### PATCH /api/documents/:id/pin
+切换文档置顶状态（需认证）
+- id 格式: `resume-{resumeId}` 或 `interview-{sessionId}`
+```json
+Response:
+{
+  "data": {
+    "id": "resume-cuid1",
+    "isPinned": true
+  }
+}
+```
 
 ---
 

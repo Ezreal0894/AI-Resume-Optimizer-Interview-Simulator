@@ -1,165 +1,336 @@
-import React from 'react';
-import { 
-  User, 
-  CreditCard, 
-  Sparkles, 
-  Bell, 
-  Shield, 
-  LogOut 
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Camera, Trash2, Save, User, Mail, Briefcase,
+  MapPin, Globe, LogOut, Tag
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import EditTagsModal from '../components/profile/EditTagsModal';
+import { UserProfile } from '../api/user';
 
-const SettingsView: React.FC = () => {
-  const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+interface SettingsViewProps {
+  onLogout: () => void;
+  profile: UserProfile | null;
+  onSaveTags: (tags: string[]) => Promise<void>;
+  onSaveProfile: (data: {
+    name: string;
+    title: string;
+    bio: string;
+    location: string;
+    website: string;
+  }) => Promise<void>;
+  onUploadAvatar: (file: File) => Promise<string | null>;
+  onDeleteAvatar: () => Promise<void>;
+}
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+const SettingsView: React.FC<SettingsViewProps> = ({
+  onLogout,
+  profile,
+  onSaveTags,
+  onSaveProfile,
+  onUploadAvatar,
+  onDeleteAvatar,
+}) => {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  // Get user initials for avatar
-  const getInitials = () => {
-    if (user?.name) {
-      const parts = user.name.split(' ');
-      return parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
+  const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
+  const [currentRoles, setCurrentRoles] = useState<string[]>([]);
+
+  const [savedData, setSavedData] = useState({
+    name: '',
+    title: '',
+    email: '',
+    location: '',
+    website: '',
+    bio: '',
+  });
+
+  const [formData, setFormData] = useState(savedData);
+
+  // 从 profile 初始化数据
+  useEffect(() => {
+    if (profile) {
+      const data = {
+        name: profile.name || '',
+        title: profile.title || '',
+        email: profile.email || '',
+        location: profile.location || '',
+        website: profile.website || '',
+        bio: profile.bio || '',
+      };
+      setSavedData(data);
+      setFormData(data);
+      setCurrentRoles(profile.tags || []);
     }
-    return user?.email?.slice(0, 2).toUpperCase() || 'JD';
+  }, [profile]);
+
+
+  useEffect(() => {
+    const isFormChanged = JSON.stringify(formData) !== JSON.stringify(savedData);
+    setIsDirty(isFormChanged || !!pendingFile);
+  }, [formData, savedData, pendingFile]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // 保存头像
+      if (pendingFile) {
+        await onUploadAvatar(pendingFile);
+        setPendingFile(null);
+        setPreviewUrl(null);
+      }
+      // 保存资料
+      await onSaveProfile({
+        name: formData.name,
+        title: formData.title,
+        bio: formData.bio,
+        location: formData.location,
+        website: formData.website,
+      });
+      setSavedData(formData);
+      setIsDirty(false);
+    } catch (error) {
+      console.error('Save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const handleSaveTags = async (newTags: string[]) => {
+    await onSaveTags(newTags);
+    setCurrentRoles(newTags);
+    setIsTagsModalOpen(false);
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(objectUrl);
+      setPendingFile(file);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveAvatar = async () => {
+    setPreviewUrl(null);
+    setPendingFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    await onDeleteAvatar();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  const avatarSrc = previewUrl || profile?.avatarUrl || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80";
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto h-full overflow-y-auto pb-24 md:pb-8">
-      <div className="mb-6 md:mb-8 pt-safe md:pt-0">
-        <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-1 md:mb-2 tracking-tight">Settings</h2>
-        <p className="text-base md:text-lg text-slate-500">Manage your account settings and preferences.</p>
+    <div className="p-4 md:p-8 max-w-7xl mx-auto h-full overflow-y-auto relative z-10 pb-24 md:pb-8">
+      {/* Ambient Background */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+        <div className="absolute top-[10%] right-[20%] w-[400px] h-[400px] rounded-full bg-indigo-500/5 blur-[100px]" />
+        <div className="absolute bottom-[10%] left-[10%] w-[300px] h-[300px] rounded-full bg-slate-500/5 blur-[80px]" />
       </div>
 
-      <div className="space-y-4 md:space-y-6">
-        {/* Profile Section */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 md:px-6 md:py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-            <User className="w-5 h-5 text-slate-500" />
-            <h3 className="font-medium text-slate-900">Profile Information</h3>
-          </div>
-          <div className="p-4 md:p-6 space-y-6">
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center text-2xl text-white font-medium shadow-lg shadow-indigo-500/20">
-                {getInitials()}
+      <div className="mb-6 md:mb-8 pt-safe md:pt-0">
+        <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-1 md:mb-2 tracking-tight">Profile Settings</h2>
+        <p className="text-base md:text-lg text-slate-500">Manage your public identity and personal details.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        {/* Left Column: Avatar */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 flex flex-col items-center text-center h-full">
+            <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full ring-4 ring-indigo-500/10 overflow-hidden relative bg-slate-100">
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={avatarSrc}
+                    src={avatarSrc}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                </AnimatePresence>
+                <motion.div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <Camera className="w-8 h-8 mb-2" />
+                  <span className="text-xs font-medium">Change Photo</span>
+                </motion.div>
               </div>
-              <div className="space-y-2 text-center md:text-left">
-                <button className="px-4 h-12 md:h-auto md:py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center">
-                  Change Avatar
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+              <div className="absolute bottom-2 right-2 md:bottom-3 md:right-3 w-5 h-5 bg-emerald-500 border-4 border-white rounded-full shadow-sm"></div>
+            </div>
+
+            <div className="mt-6 space-y-1">
+              <h3 className="text-xl font-bold text-slate-900">{formData.name}</h3>
+              <p className="text-slate-500 font-medium">{formData.title}</p>
+            </div>
+
+            <div className="mt-8 w-full space-y-3">
+              <button
+                onClick={handleSave}
+                disabled={!isDirty || isSaving}
+                className={`w-full py-3 rounded-full font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                  isDirty && !isSaving
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98]'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button
+                onClick={handleRemoveAvatar}
+                className="w-full py-3 rounded-full font-medium text-sm text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Remove Avatar
+              </button>
+              <div className="pt-4 mt-4 border-t border-slate-100 w-full">
+                <button
+                  onClick={onLogout}
+                  className="w-full py-3 rounded-full font-bold text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
                 </button>
-                <p className="text-xs text-slate-400">JPG, GIF or PNG. Max size of 800K</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">First Name</label>
-                <input type="text" defaultValue={user?.name?.split(' ')[0] || 'John'} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition-all" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Last Name</label>
-                <input type="text" defaultValue={user?.name?.split(' ')[1] || 'Doe'} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition-all" />
+          </div>
+        </div>
+
+
+        {/* Right Column: Form */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 h-full">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <User className="w-5 h-5 text-indigo-500" />
+              Basic Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-slate-700 ml-1">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900"
+                  />
+                </div>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-slate-700">Professional Title</label>
-                <input type="text" defaultValue="Senior Frontend Engineer" className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500 transition-all" />
+                <label className="text-sm font-bold text-slate-700 ml-1">Professional Title</label>
+                <div className="relative">
+                  <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-slate-700 ml-1">Bio</label>
+                <textarea
+                  rows={4}
+                  value={formData.bio}
+                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900 resize-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 ml-1">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="email"
+                    value={formData.email}
+                    disabled
+                    className="w-full pl-12 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-2xl font-medium text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 ml-1">Location</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-slate-700 ml-1">Website</label>
+                <div className="relative">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Account & Subscription */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 md:px-6 md:py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-            <CreditCard className="w-5 h-5 text-slate-500" />
-            <h3 className="font-medium text-slate-900">Subscription & Billing</h3>
-          </div>
-          <div className="p-4 md:p-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100 mb-6 gap-4 md:gap-0">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-indigo-900">{user?.plan === 'pro' ? 'Pro Plan' : 'Free Plan'}</p>
-                  <p className="text-sm text-indigo-700">Billed annually • Next billing date: Oct 24, 2026</p>
-                </div>
-              </div>
-              <button className="w-full md:w-auto px-4 py-2 bg-white text-indigo-600 text-sm font-medium rounded-lg shadow-sm border border-indigo-200 hover:bg-indigo-50 transition-colors">
-                Manage Subscription
+          {/* Career Tags Section */}
+          <div className="mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-indigo-500" />
+              Career Focus
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {currentRoles.map((role, index) => (
+                <motion.span
+                  key={role}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-sm font-bold border border-indigo-100 flex items-center gap-2"
+                >
+                  {role}
+                </motion.span>
+              ))}
+              <button
+                onClick={() => setIsTagsModalOpen(true)}
+                className="px-4 py-1.5 rounded-full bg-slate-50 text-slate-500 text-sm font-bold border border-slate-200 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center gap-1"
+              >
+                + Edit
               </button>
             </div>
-            <div className="space-y-4">
-               <div className="flex items-center justify-between py-2">
-                 <span className="text-sm text-slate-600">Payment Method</span>
-                 <span className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                   <div className="w-8 h-5 bg-slate-200 rounded flex items-center justify-center text-[10px] font-bold text-slate-500">VISA</div>
-                   •••• 4242
-                 </span>
-               </div>
-               <div className="flex items-center justify-between py-2 border-t border-slate-100">
-                 <span className="text-sm text-slate-600">Billing Email</span>
-                 <span className="text-sm font-medium text-slate-900">{user?.email || 'john.doe@example.com'}</span>
-               </div>
-            </div>
           </div>
-        </div>
-
-        {/* Notifications */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 md:px-6 md:py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-            <Bell className="w-5 h-5 text-slate-500" />
-            <h3 className="font-medium text-slate-900">Notifications</h3>
-          </div>
-          <div className="p-4 md:p-6 space-y-4">
-            {[
-              { label: 'Email Digest', desc: 'Receive a weekly summary of your interview progress', default: true },
-              { label: 'New Features', desc: 'Get notified about new AI models and tools', default: true },
-              { label: 'Marketing', desc: 'Receive offers and promotions', default: false },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{item.label}</p>
-                  <p className="text-xs text-slate-500">{item.desc}</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" defaultChecked={item.default} className="sr-only peer" />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Danger Zone */}
-        <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 md:px-6 md:py-4 border-b border-red-100 bg-red-50/30 flex items-center gap-3">
-            <Shield className="w-5 h-5 text-red-500" />
-            <h3 className="font-medium text-red-900">Danger Zone</h3>
-          </div>
-          <div className="p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
-            <div>
-              <p className="text-sm font-medium text-slate-900">Delete Account</p>
-              <p className="text-xs text-slate-500">Permanently remove your account and all data.</p>
-            </div>
-            <button className="w-full md:w-auto px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors">
-              Delete Account
-            </button>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-4 pb-8">
-          <button 
-            onClick={handleLogout}
-            className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-300 transition-colors"
-          >
-            <LogOut className="w-4 h-4" /> Sign Out
-          </button>
         </div>
       </div>
+
+      <EditTagsModal
+        isOpen={isTagsModalOpen}
+        onClose={() => setIsTagsModalOpen(false)}
+        initialTags={currentRoles}
+        onSave={handleSaveTags}
+      />
     </div>
   );
 };

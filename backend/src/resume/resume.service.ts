@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import * as pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserService, CREDIT_COSTS } from '../user/user.service';
 import { ResumeAnalysisReport } from './dto/resume.dto';
@@ -77,15 +77,18 @@ export class ResumeService {
       // 3. 解析文件内容
       const rawContent = await this.parseFileInMemory(file);
 
-      if (!rawContent || rawContent.trim().length < 50) {
+      if (!rawContent || rawContent.trim().length < 10) {
         throw new BadRequestException('无法从文件中提取有效内容，请确保简历包含文字');
       }
 
-      // 4. 创建简历记录（状态：分析中）
+      // 4. 修复中文文件名编码（Multer 使用 Latin-1 解码，需转为 UTF-8）
+      const fileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+
+      // 5. 创建简历记录（状态：分析中）
       const resume = await this.prisma.resume.create({
         data: {
           userId,
-          fileName: file.originalname,
+          fileName,
           fileSize: file.size,
           mimeType: file.mimetype,
           rawContent,

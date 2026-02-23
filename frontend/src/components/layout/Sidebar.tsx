@@ -1,20 +1,18 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  FileText, 
   Mic, 
   BarChart3, 
   FolderOpen,
   Settings, 
   Sparkles
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { useAuthStore } from '../../stores/authStore';
+import ThemeToggle from '../theme/ThemeToggle';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { path: '/dashboard/resume', label: 'Resume Optimizer', icon: FileText },
   { path: '/dashboard/interview', label: 'Mock Interview', icon: Mic },
   { path: '/dashboard/report', label: 'Reports', icon: BarChart3 },
   { path: '/dashboard/documents', label: 'Documents', icon: FolderOpen },
@@ -29,7 +27,7 @@ const Sidebar: React.FC = () => {
     : user?.email?.[0]?.toUpperCase() || 'U';
 
   return (
-    <div className="hidden md:flex w-64 bg-slate-900 h-screen flex-col text-slate-400 border-r border-slate-800 flex-shrink-0 z-20 relative">
+    <div className="hidden md:flex w-64 bg-slate-900 dark:bg-slate-950 h-screen flex-col text-slate-400 border-r border-slate-800 flex-shrink-0 z-20 relative transition-colors duration-300">
       <div className="p-6 flex items-center gap-3 text-white mb-6">
         <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/50">
           <Sparkles className="w-5 h-5 text-white" />
@@ -65,7 +63,14 @@ const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      <div className="p-6 border-t border-slate-800">
+      <div className="p-6 border-t border-slate-800 space-y-6">
+        {/* Theme Toggle */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Theme</span>
+          <ThemeToggle />
+        </div>
+        
+        {/* User Info */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white font-medium">
             {userInitials}

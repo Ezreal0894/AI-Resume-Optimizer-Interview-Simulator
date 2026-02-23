@@ -21,6 +21,7 @@ import {
   Megaphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { userApi } from '../api/user';
 
 const ROLES = [
   { id: 'frontend', label: 'Frontend Dev', icon: Layout },
@@ -44,19 +45,31 @@ const ROLES = [
 const OnboardingView: React.FC = () => {
   const navigate = useNavigate();
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const toggleRole = (roleId: string) => {
+  const toggleRole = (roleLabel: string) => {
     setSelectedRoles(prev => 
-      prev.includes(roleId) 
-        ? prev.filter(id => id !== roleId)
-        : [...prev, roleId]
+      prev.includes(roleLabel) 
+        ? prev.filter(label => label !== roleLabel)
+        : [...prev, roleLabel]
     );
   };
 
   const handleComplete = async () => {
-    // TODO: Call API to save onboarding tags
-    // await userApi.saveOnboarding({ tags: selectedRoles });
-    navigate('/dashboard');
+    if (selectedRoles.length === 0 || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      // 调用 API 保存 onboarding 标签
+      await userApi.saveOnboarding(selectedRoles);
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Failed to save onboarding tags:', error);
+      // 即使保存失败也跳转，避免用户卡住
+      navigate('/dashboard');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -94,7 +107,7 @@ const OnboardingView: React.FC = () => {
         <div className="max-w-5xl mx-auto px-4 md:px-6 pb-40 pt-2">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
             {ROLES.map((role, index) => {
-              const isSelected = selectedRoles.includes(role.id);
+              const isSelected = selectedRoles.includes(role.label);
               return (
                 <motion.button
                   key={role.id}
@@ -104,7 +117,7 @@ const OnboardingView: React.FC = () => {
                   transition={{ duration: 0.5, delay: index % 4 * 0.05 }}
                   whileHover={{ y: -4, boxShadow: "0 10px 30px -10px rgba(79, 70, 229, 0.1)" }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => toggleRole(role.id)}
+                  onClick={() => toggleRole(role.label)}
                   className={`relative group p-4 md:p-6 rounded-2xl border-2 text-left transition-all duration-300 flex flex-col items-start gap-3 md:gap-4 h-full min-h-[140px] md:min-h-[160px] ${
                     isSelected 
                       ? 'bg-indigo-50/50 border-indigo-600 shadow-lg shadow-indigo-500/10' 
@@ -164,15 +177,15 @@ const OnboardingView: React.FC = () => {
           </div>
           
           <button
-            onClick={() => selectedRoles.length > 0 && handleComplete()}
-            disabled={selectedRoles.length === 0}
+            onClick={handleComplete}
+            disabled={selectedRoles.length === 0 || isSubmitting}
             className={`w-full md:w-auto px-8 py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all duration-300 ${
-              selectedRoles.length > 0
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] animate-pulse'
+              selectedRoles.length > 0 && !isSubmitting
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98]'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed'
             }`}
           >
-            Enter Workspace
+            {isSubmitting ? 'Saving...' : 'Enter Workspace'}
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>

@@ -23,7 +23,13 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   password     String
+  
+  // 基本信息
   name         String?
+  title        String?  // 职业头衔
+  bio          String?  @db.Text
+  location     String?
+  website      String?
   avatar       String?
   
   // Onboarding 标签（最多 10 个）

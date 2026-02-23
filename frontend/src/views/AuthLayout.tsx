@@ -47,8 +47,10 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ initialMode = 'login' }) => {
         navigate('/dashboard');
       } else {
         const response = await authApi.register({ email, password, name: name || undefined });
+        // 先设置登录状态，再使用 window.location 硬跳转到 onboarding
+        // 这样可以避免 React Router 的 PublicRoute 重定向问题
         login(response.data.accessToken, response.data.user);
-        navigate('/dashboard');
+        window.location.href = '/onboarding';
       }
     } catch (err: any) {
       setError(err.response?.data?.message || '操作失败，请重试');

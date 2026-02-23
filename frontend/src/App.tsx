@@ -15,7 +15,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
-import ResumePage from './pages/ResumePage';
 import InterviewPage from './pages/InterviewPage';
 import ReportPage from './pages/ReportPage';
 import SettingsPage from './pages/SettingsPage';
@@ -76,7 +75,6 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route path="resume" element={<ResumePage />} />
         <Route path="interview" element={<InterviewPage />} />
         <Route path="report" element={<ReportPage />} />
         <Route path="documents" element={<DocumentsPage />} />

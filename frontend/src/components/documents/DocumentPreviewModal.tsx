@@ -18,10 +18,13 @@ interface DocumentPreviewModalProps {
   onClose: () => void;
   document: {
     title: string;
-    fileType: 'pdf' | 'docx';
+    fileType: 'pdf' | 'docx' | 'report';
     size: string;
     date: string;
     category: string;
+    ownerName?: string;
+    aiSummary?: string;
+    rawContent?: string;
   } | null;
   isFullScreen?: boolean;
 }
@@ -87,48 +90,35 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ isOpen, onC
                     </button>
                   </div>
                 </div>
-                <div className="text-sm font-medium text-slate-500">Page 1 of 2</div>
+                <div className="text-sm font-medium text-slate-500">Preview</div>
               </div>
 
-              {/* Document Canvas (Mock) */}
+              {/* Document Canvas */}
               <div className="flex-1 overflow-auto p-8 flex justify-center bg-slate-50/50 relative z-0">
                 <div 
                   className="transition-transform duration-200 ease-out origin-top"
                   style={{ transform: `scale(${scale})` }}
                 >
-                  <div className="w-[800px] bg-white shadow-lg min-h-[1000px] p-12 space-y-8 relative group border border-slate-200/60">
-                    {/* Mock Document Content */}
-                    <div className="w-24 h-24 bg-slate-200 rounded-full mb-8"></div>
-                    <div className="space-y-4">
-                      <div className="h-8 bg-slate-800 w-3/4 rounded-md"></div>
-                      <div className="h-4 bg-indigo-500 w-1/4 rounded-md"></div>
-                    </div>
-                    <div className="space-y-3 pt-8">
-                      <div className="h-4 bg-slate-200 w-full rounded"></div>
-                      <div className="h-4 bg-slate-200 w-full rounded"></div>
-                      <div className="h-4 bg-slate-200 w-5/6 rounded"></div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-8 pt-8">
-                      <div className="space-y-3">
-                        <div className="h-6 bg-slate-300 w-1/2 rounded mb-4"></div>
-                        <div className="h-4 bg-slate-100 w-full rounded"></div>
-                        <div className="h-4 bg-slate-100 w-full rounded"></div>
-                        <div className="h-4 bg-slate-100 w-3/4 rounded"></div>
+                  <div className="w-[800px] bg-white shadow-lg min-h-[1000px] p-12 relative group border border-slate-200/60">
+                    {document.rawContent ? (
+                      /* Real Document Content */
+                      <div className="prose prose-slate max-w-none">
+                        <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 leading-relaxed">
+                          {document.rawContent}
+                        </pre>
                       </div>
-                      <div className="space-y-3">
-                        <div className="h-6 bg-slate-300 w-1/2 rounded mb-4"></div>
-                        <div className="h-4 bg-slate-100 w-full rounded"></div>
-                        <div className="h-4 bg-slate-100 w-full rounded"></div>
-                        <div className="h-4 bg-slate-100 w-3/4 rounded"></div>
+                    ) : (
+                      /* Placeholder for documents without content */
+                      <div className="flex flex-col items-center justify-center h-full min-h-[800px] text-center">
+                        <FileText className="w-16 h-16 text-slate-300 mb-4" />
+                        <p className="text-slate-500 font-medium">No preview available</p>
+                        <p className="text-slate-400 text-sm mt-1">
+                          {document.category === 'report' 
+                            ? 'Interview reports are displayed in the Report page' 
+                            : 'Document content could not be extracted'}
+                        </p>
                       </div>
-                    </div>
-                    
-                    {/* Watermark/Overlay for effect */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-50">
-                      <div className="bg-slate-900/80 backdrop-blur-sm text-white px-6 py-3 rounded-full font-medium shadow-xl transform scale-90 group-hover:scale-100 transition-transform border border-white/10">
-                        Preview Mode
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -171,7 +161,7 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ isOpen, onC
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-slate-500 text-xs">Owner</p>
-                      <p className="font-medium text-slate-900 truncate">John Doe</p>
+                      <p className="font-medium text-slate-900 truncate">{document.ownerName || 'You'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
@@ -187,16 +177,18 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ isOpen, onC
                   </div>
                 </div>
 
-                {/* AI Insights (Mock) */}
-                <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100">
-                  <h4 className="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
-                    <FileText className="w-4 h-4 flex-none" /> 
-                    <span className="truncate">AI Summary</span>
-                  </h4>
-                  <p className="text-xs text-indigo-800/80 leading-relaxed break-words">
-                    This document appears to be a technical resume focused on frontend development. It contains strong keywords related to React and modern web technologies.
-                  </p>
-                </div>
+                {/* AI Insights */}
+                {document.aiSummary && (
+                  <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100">
+                    <h4 className="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4 flex-none" /> 
+                      <span className="truncate">AI Summary</span>
+                    </h4>
+                    <p className="text-xs text-indigo-800/80 leading-relaxed break-words">
+                      {document.aiSummary}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Actions Footer */}

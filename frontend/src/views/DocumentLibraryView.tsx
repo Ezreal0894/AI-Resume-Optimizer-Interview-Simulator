@@ -11,74 +11,19 @@ import {
   FolderOpen,
   MoreVertical,
   Pin,
-  PinOff
+  PinOff,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DocumentUploadModal from '../components/documents/DocumentUploadModal';
 import DocumentPreviewModal from '../components/documents/DocumentPreviewModal';
+import { getDocuments, deleteDocument, toggleDocumentPin, uploadDocument, Document } from '../api/document';
 
 // --- Types ---
-type DocType = 'resume' | 'optimized' | 'report';
+// DocType removed - using 'type' from API Document interface
 
-interface Document {
-  id: string;
-  title: string;
-  category: DocType;
-  fileType: 'pdf' | 'docx';
-  size: string;
-  date: string;
-  tags: { label: string; color: 'indigo' | 'emerald' | 'amber' | 'slate' }[];
-  isPinned?: boolean;
-}
-
-// --- Mock Data ---
-const MOCK_DOCS: Document[] = [
-  {
-    id: '1',
-    title: 'Senior_Frontend_Resume_v1.pdf',
-    category: 'resume',
-    fileType: 'pdf',
-    size: '1.2 MB',
-    date: '2 hours ago',
-    tags: [{ label: 'Original', color: 'slate' }]
-  },
-  {
-    id: '2',
-    title: 'Frontend_Lead_Optimized_v2.pdf',
-    category: 'optimized',
-    fileType: 'pdf',
-    size: '1.4 MB',
-    date: 'Yesterday',
-    tags: [{ label: 'Match 95%', color: 'emerald' }, { label: 'ATS Ready', color: 'indigo' }]
-  },
-  {
-    id: '3',
-    title: 'Interview_Feedback_Google.docx',
-    category: 'report',
-    fileType: 'docx',
-    size: '850 KB',
-    date: '3 days ago',
-    tags: [{ label: 'System Design', color: 'amber' }]
-  },
-  {
-    id: '4',
-    title: 'FullStack_Engineer_Draft.docx',
-    category: 'resume',
-    fileType: 'docx',
-    size: '2.1 MB',
-    date: 'Oct 24, 2025',
-    tags: [{ label: 'Draft', color: 'slate' }]
-  },
-  {
-    id: '5',
-    title: 'Behavioral_Analysis_Report.pdf',
-    category: 'report',
-    fileType: 'pdf',
-    size: '3.5 MB',
-    date: 'Oct 20, 2025',
-    tags: [{ label: 'Leadership', color: 'indigo' }]
-  },
-];
+// --- Types imported from API ---
+// Document interface is imported from '../api/document'
 
 const TABS = [
   { id: 'all', label: 'All Files' },
@@ -92,12 +37,50 @@ interface DocumentLibraryViewProps {
   onPreviewModeChange?: (isMode: boolean) => void;
 }
 
+// Type for preview modal document (includes category mapped from type)
+interface PreviewDocument {
+  title: string;
+  fileType: 'pdf' | 'docx' | 'report';
+  size: string;
+  date: string;
+  category: string;
+  ownerName?: string;
+  aiSummary?: string;
+  rawContent?: string;
+}
+
 const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode = false, onPreviewModeChange }) => {
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [documents, setDocuments] = useState<Document[]>(MOCK_DOCS);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
+
+  // Fetch documents from API
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      setIsLoading(true);
+      try {
+        // 始终获取所有文档，在前端过滤
+        const data = await getDocuments('all');
+        setDocuments(data || []);
+      } catch (error) {
+        console.error('Failed to fetch documents:', error);
+        setDocuments([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchDocuments();
+  }, []); // 只在组件挂载时获取一次
+
+  // 当 Tab 切换时重新获取（可选，用于刷新数据）
+  useEffect(() => {
+    if (activeTab !== 'all') {
+      // Tab 切换不重新请求，使用前端过滤
+    }
+  }, [activeTab]);
 
   // Sync internal preview state with external mode
   useEffect(() => {
@@ -107,7 +90,18 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
   }, [isPreviewMode]);
 
   const handlePreview = (doc: Document) => {
-    setPreviewDocument(doc);
+    // Map API document to preview modal format
+    const previewDoc: PreviewDocument = {
+      title: doc.title,
+      fileType: doc.fileType,
+      size: doc.size,
+      date: doc.date,
+      category: doc.type, // Map 'type' to 'category' for modal
+      ownerName: doc.ownerName,
+      aiSummary: doc.aiSummary,
+      rawContent: doc.rawContent,
+    };
+    setPreviewDocument(previewDoc);
     onPreviewModeChange?.(true);
   };
 
@@ -116,37 +110,43 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
     onPreviewModeChange?.(false);
   };
 
-  const handleUpload = (file: File, category: string) => {
-    const newDoc: Document = {
-      id: Date.now().toString(),
-      title: file.name,
-      category: (category === 'cover_letter' || category === 'other') ? 'resume' : category as DocType,
-      fileType: file.name.split('.').pop()?.toLowerCase().includes('pdf') ? 'pdf' : 'docx',
-      size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-      date: 'Just now',
-      tags: [{ label: 'New', color: 'emerald' }]
-    };
-    setDocuments([newDoc, ...documents]);
+  const handleUpload = async (file: File, _category: string) => {
+    // 调用后端 API 上传文件
+    await uploadDocument(file);
+    // 上传成功后刷新文档列表
+    const data = await getDocuments(activeTab);
+    setDocuments(data || []);
   };
 
-  // Filter logic
+  // Filter logic - apply both tab filter and search
   const filteredDocs = documents.filter(doc => {
-    const matchesTab = activeTab === 'all' || doc.category === activeTab;
-    const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase());
+    // 搜索时同时按 Tab 和关键词过滤
+    const matchesTab = activeTab === 'all' || doc.type === activeTab;
+    const matchesSearch = !searchQuery || doc.title.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   }).sort((a, b) => {
     if (a.isPinned === b.isPinned) return 0;
     return a.isPinned ? -1 : 1;
   });
 
-  const handleDelete = (id: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDocument(id);
+      setDocuments(prev => prev.filter(doc => doc.id !== id));
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+    }
   };
 
-  const handlePin = (id: string) => {
-    setDocuments(prev => prev.map(doc => 
-      doc.id === id ? { ...doc, isPinned: !doc.isPinned } : doc
-    ));
+  const handlePin = async (id: string) => {
+    try {
+      const result = await toggleDocumentPin(id);
+      setDocuments(prev => prev.map(doc => 
+        doc.id === id ? { ...doc, isPinned: result.isPinned } : doc
+      ));
+    } catch (error) {
+      console.error('Failed to toggle pin:', error);
+    }
   };
 
   return (
@@ -209,6 +209,11 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
       </div>
 
       {/* 3. Responsive File Grid */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+        </div>
+      ) : (
       <motion.div 
         layout
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
@@ -233,12 +238,12 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
                   )}
                   <div className="flex justify-between items-start mb-4">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                      doc.category === 'resume' ? 'bg-slate-100 text-slate-600' :
-                      doc.category === 'optimized' ? 'bg-indigo-50 text-indigo-600' :
+                      doc.type === 'resume' ? 'bg-slate-100 text-slate-600' :
+                      doc.type === 'optimized' ? 'bg-indigo-50 text-indigo-600' :
                       'bg-amber-50 text-amber-600'
                     }`}>
-                      {doc.category === 'report' ? <FileBarChart className="w-6 h-6" /> : 
-                       doc.category === 'optimized' ? <FileCheck className="w-6 h-6" /> : 
+                      {doc.type === 'report' ? <FileBarChart className="w-6 h-6" /> : 
+                       doc.type === 'optimized' ? <FileCheck className="w-6 h-6" /> : 
                        <FileText className="w-6 h-6" />}
                     </div>
                     <button className="md:hidden p-2 text-slate-400 hover:bg-slate-50 rounded-full">
@@ -345,6 +350,7 @@ const DocumentLibraryView: React.FC<DocumentLibraryViewProps> = ({ isPreviewMode
           )}
         </AnimatePresence>
       </motion.div>
+      )}
 
       <DocumentUploadModal 
         isOpen={isUploadModalOpen} 

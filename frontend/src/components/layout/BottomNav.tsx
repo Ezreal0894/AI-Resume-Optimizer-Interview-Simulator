@@ -1,18 +1,16 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  FileText, 
   Mic, 
   BarChart3, 
-  Settings
+  FolderOpen
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: LayoutDashboard, end: true },
-  { path: '/dashboard/resume', label: 'Resume', icon: FileText },
   { path: '/dashboard/interview', label: 'Interview', icon: Mic },
+  { path: '/dashboard/documents', label: 'Documents', icon: FolderOpen },
   { path: '/dashboard/report', label: 'Reports', icon: BarChart3 },
 ];
 

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface DocumentUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (file: File, category: string) => void;
+  onUpload: (file: File, category: string) => Promise<void>;
 }
 
 const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({ isOpen, onClose, onUpload }) => {
@@ -13,7 +13,7 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({ isOpen, onClo
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState('resume');
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -42,26 +42,20 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({ isOpen, onClo
     }
   };
 
-  const handleUpload = () => {
-    if (!file) return;
+  const handleUpload = async () => {
+    if (!file || uploading) return;
     setUploading(true);
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            onUpload(file, category);
-            setUploading(false);
-            setProgress(0);
-            setFile(null);
-            onClose();
-          }, 500);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    setError(null);
+    
+    try {
+      await onUpload(file, category);
+      setFile(null);
+      onClose();
+    } catch (err: any) {
+      setError(err.response?.data?.message || '上传失败，请重试');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -167,21 +161,19 @@ const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({ isOpen, onClo
                 </div>
               </div>
 
-              {/* Progress Bar */}
+              {/* Error Message */}
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Uploading State */}
               {uploading && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs font-medium text-slate-500">
-                    <span>Uploading...</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <motion.div 
-                      className="h-full bg-indigo-500 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ duration: 0.2 }}
-                    />
-                  </div>
+                <div className="flex items-center justify-center gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>正在上传并分析...</span>
                 </div>
               )}
             </div>
