@@ -1,6 +1,6 @@
 /**
  * 面试相关 DTO
- * 🔄 v2.0：前端契约对齐的雷达图 5 维度
+ * 🔄 v3.0：支持 Resume/Topic 双模式，动态校验规则
  */
 import {
   IsString,
@@ -9,8 +9,20 @@ import {
   IsArray,
   ValidateNested,
   MaxLength,
+  ValidateIf,
+  IsNotEmpty,
+  ArrayMinSize,
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+/**
+ * 面试模式枚举
+ */
+export enum InterviewMode {
+  RESUME = 'RESUME',  // 基于简历的深度面试
+  TOPIC = 'TOPIC',    // 专项话题盲测
+}
 
 /**
  * 面试难度枚举
@@ -23,9 +35,15 @@ export enum InterviewDifficulty {
 }
 
 /**
- * 创建面试会话 DTO
+ * 创建面试会话 DTO（v3.0 重构版）
+ * 🎯 核心校验逻辑：
+ * - mode === 'RESUME' 时，resumeId 必填，customKnowledgePoints 可选
+ * - mode === 'TOPIC' 时，topics 数组必填且不能为空
  */
 export class CreateSessionDto {
+  @IsEnum(InterviewMode)
+  mode: InterviewMode;
+
   @IsString()
   @MaxLength(100)
   jobTitle: string;
@@ -38,6 +56,29 @@ export class CreateSessionDto {
   @IsOptional()
   @IsEnum(InterviewDifficulty)
   difficulty?: InterviewDifficulty;
+
+  // 🔴 Resume 模式：resumeId 必填
+  @ValidateIf((o) => o.mode === InterviewMode.RESUME)
+  @IsNotEmpty({ message: 'resumeId is required when mode is RESUME' })
+  @IsString()
+  resumeId?: string;
+
+  // 🆕 Phase 1: 用户确认后的自定义知识点（Resume 模式专用）
+  @ValidateIf((o) => o.mode === InterviewMode.RESUME)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20, { message: 'customKnowledgePoints must not exceed 20 items' })
+  @IsString({ each: true })
+  @MaxLength(100, { each: true, message: 'Each knowledge point must not exceed 100 characters' })
+  customKnowledgePoints?: string[];
+
+  // 🔴 Topic 模式：topics 数组必填且至少 1 个
+  @ValidateIf((o) => o.mode === InterviewMode.TOPIC)
+  @IsNotEmpty({ message: 'topics is required when mode is TOPIC' })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'topics must contain at least 1 item' })
+  @IsString({ each: true })
+  topics?: string[];
 }
 
 /**

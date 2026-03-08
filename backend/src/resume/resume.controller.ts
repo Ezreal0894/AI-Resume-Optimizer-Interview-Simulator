@@ -36,6 +36,73 @@ export class ResumeController {
   constructor(private readonly resumeService: ResumeService) {}
 
   /**
+   * 🆕 Phase 3: 白盒化简历深度解析接口（增强版）
+   * POST /api/resume/extract
+   * 
+   * 功能：提取个人信息、亮点、知识点（Structured Output）
+   * 
+   * 🔧 支持两种模式：
+   * 1. 新文件上传：multipart/form-data with file
+   * 2. 历史简历：application/json with resumeId
+   * 
+   * 返回：{ personalInfo, highlights, knowledgePoints, resumeId }
+   */
+  @Post('extract')
+  @UseGuards(UserRateLimitGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
+        files: 1,
+      },
+      fileFilter: (req, file, callback) => {
+        if (!file) {
+          // 允许没有文件（历史简历模式）
+          callback(null, true);
+          return;
+        }
+        if (!UPLOAD_CONFIG.ALLOWED_MIMES.includes(file.mimetype)) {
+          callback(new BadRequestException('仅支持 PDF 和 DOCX 格式'), false);
+          return;
+        }
+        if (/[<>:"/\\|?*\x00-\x1f]/.test(file.originalname)) {
+          callback(new BadRequestException('文件名包含非法字符'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async extractResume(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('targetRole') targetRole: string,
+    @Body('resumeId') resumeId: string, // 🆕 历史简历 ID（可选）
+    @CurrentUser('id') userId: string,
+  ) {
+    // 验证：必须提供文件或 resumeId
+    if (!file && !resumeId) {
+      throw new BadRequestException('请上传简历文件或提供简历 ID');
+    }
+
+    if (!targetRole || targetRole.trim().length === 0) {
+      throw new BadRequestException('请填写目标职位');
+    }
+
+    const result = await this.resumeService.extractResumeStructured(
+      file || null,
+      userId,
+      targetRole.trim(),
+      resumeId,
+    );
+
+    return {
+      message: '简历解析完成',
+      data: result,
+    };
+  }
+
+  /**
    * 🔄 复合上传并分析简历（高阶 ATS 结构）
    * POST /api/resume/analyze
    * Content-Type: multipart/form-data

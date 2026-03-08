@@ -1,6 +1,6 @@
 /**
  * 面试控制器
- * 🔄 v2.0：新增置顶接口
+ * 🔄 v3.0：支持 Resume/Topic 双模式
  */
 import {
   Controller,
@@ -9,6 +9,7 @@ import {
   Body,
   Param,
   Patch,
+  Delete,
   UseGuards,
   Sse,
   MessageEvent,
@@ -134,6 +135,22 @@ export class InterviewController {
 
     return {
       data: session,
+    };
+  }
+
+  /**
+   * 删除面试会话
+   * DELETE /api/interview/session/:sessionId
+   */
+  @Delete('session/:sessionId')
+  async deleteSession(
+    @Param('sessionId') sessionId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    await this.interviewService.deleteSession(sessionId, userId);
+
+    return {
+      message: '面试记录已删除',
     };
   }
 }

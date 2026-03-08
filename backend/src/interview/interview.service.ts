@@ -57,21 +57,50 @@ export class InterviewService {
   }
 
   /**
-   * 创建面试会话
+   * 创建面试会话（v3.0 重构版：支持 Resume/Topic 双模式）
    */
   async createSession(dto: CreateSessionDto, userId: string) {
+    // 🔴 Step 1: Resume 模式验证 - 检查简历是否存在
+    if (dto.mode === 'RESUME' && dto.resumeId) {
+      const resume = await this.prisma.resume.findFirst({
+        where: {
+          id: dto.resumeId,
+          userId, // 确保简历属于当前用户
+        },
+      });
+
+      if (!resume) {
+        throw new NotFoundException('简历不存在或无权访问');
+      }
+
+      // 检查简历是否已解析
+      if (!resume.rawContent && !resume.analysisReport) {
+        throw new BadRequestException('简历尚未解析完成，请稍后重试');
+      }
+    }
+
+    // 🔴 Step 2: 创建面试会话（包含新字段）
     const session = await this.prisma.interviewSession.create({
       data: {
         userId,
         jobTitle: dto.jobTitle,
         jobDescription: dto.jobDescription,
         difficulty: dto.difficulty || 'MEDIUM',
+        mode: dto.mode,
+        resumeId: dto.mode === 'RESUME' ? dto.resumeId : null,
+        customKnowledgePoints: dto.mode === 'RESUME' && dto.customKnowledgePoints 
+          ? dto.customKnowledgePoints 
+          : [],
+        topics: dto.mode === 'TOPIC' ? dto.topics || [] : [],
         status: 'IN_PROGRESS',
+      },
+      include: {
+        resume: dto.mode === 'RESUME', // 如果是 Resume 模式，关联查询简历
       },
     });
 
-    // 创建系统提示消息
-    const systemPrompt = this.generateSystemPrompt(dto.jobTitle, dto.jobDescription, dto.difficulty);
+    // 🔴 Step 3: 动态生成 System Prompt（Prompt Router 核心逻辑）
+    const systemPrompt = await this.generateDynamicSystemPrompt(session);
 
     await this.prisma.interviewMessage.create({
       data: {
@@ -81,8 +110,8 @@ export class InterviewService {
       },
     });
 
-    // 生成开场白
-    const greeting = this.generateGreeting(dto.jobTitle);
+    // 🔴 Step 4: 生成开场白
+    const greeting = this.generateDynamicGreeting(session);
 
     await this.prisma.interviewMessage.create({
       data: {
@@ -346,7 +375,177 @@ export class InterviewService {
   }
 
   /**
-   * 生成系统提示词
+   * 删除面试会话
+   */
+  async deleteSession(sessionId: string, userId: string) {
+    const session = await this.prisma.interviewSession.findFirst({
+      where: { id: sessionId, userId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('面试会话不存在');
+    }
+
+    // Prisma 会自动级联删除关联的 InterviewMessage（onDelete: Cascade）
+    await this.prisma.interviewSession.delete({
+      where: { id: sessionId },
+    });
+  }
+
+  /**
+   * 🚀 动态生成 System Prompt（Prompt Router 核心）
+   * 根据 mode 路由到不同的提示词模板
+   * 🆕 Phase 1: Resume 模式支持 customKnowledgePoints
+   */
+  private async generateDynamicSystemPrompt(session: any): Promise<string> {
+    const difficultyMap = {
+      EASY: 'Junior（初级）',
+      MEDIUM: 'Mid-Level（中级）',
+      HARD: 'Senior（高级）',
+      EXPERT: 'Big Tech Expert（专家级）',
+    };
+
+    const difficultyLabel = difficultyMap[session.difficulty] || 'Mid-Level（中级）';
+
+    // 🔴 Resume 模式：基于简历的深度面试 + 自定义知识点
+    if (session.mode === 'RESUME' && session.resume) {
+      const resumeContent = this.extractResumeContent(session.resume);
+      
+      // 🆕 Phase 1: 如果有自定义知识点，强调围绕这些知识点提问
+      const knowledgePointsSection = session.customKnowledgePoints && session.customKnowledgePoints.length > 0
+        ? `\n【用户确认的核心知识点】：\n${session.customKnowledgePoints.join('、')}\n\n⚠️ 重要：你必须严格围绕上述知识点展开提问，深挖候选人在这些领域的理解深度和实践经验。`
+        : '';
+
+      return `你是一位资深的技术面试官，正在进行「${session.jobTitle}」岗位的深度面试。
+
+【面试难度】：${difficultyLabel}
+
+【候选人简历上下文】：
+${resumeContent}${knowledgePointsSection}
+
+【面试策略】：
+1. 深挖简历中的项目经验，追问技术细节和实现方案
+2. 针对简历中提到的技术栈进行深度考察
+3. ${session.customKnowledgePoints && session.customKnowledgePoints.length > 0 ? '重点围绕用户确认的核心知识点进行提问' : '关注候选人在项目中的角色、贡献和解决的核心问题'}
+4. 根据难度级别调整问题深度：
+   - Junior: 基础概念、常见场景
+   - Mid-Level: 实际应用、性能优化
+   - Senior: 架构设计、技术选型
+   - Expert: 系统设计、技术领导力
+
+【面试规则】：
+- 每次只问一个问题，等待候选人回答后再继续
+- 根据简历内容进行针对性提问
+- 保持专业、友好的态度
+- 适时给予正面反馈和引导
+
+请用中文进行面试。`;
+    }
+
+    // 🔴 Topic 模式：专项话题盲测
+    if (session.mode === 'TOPIC' && session.topics.length > 0) {
+      const topicsText = session.topics.join('、');
+
+      return `你是一位资深的技术面试官，正在进行「${session.jobTitle}」岗位的专项技术盲测。
+
+【面试难度】：${difficultyLabel}
+
+【考核领域】：${topicsText}
+
+【面试策略】：
+1. 直接从指定领域中挑选高频、硬核的面试题进行提问
+2. 无需提及简历，专注于技术能力的考察
+3. 根据难度级别调整问题深度：
+   - Junior: 基础概念、API 使用
+   - Mid-Level: 原理解析、最佳实践
+   - Senior: 深层原理、性能优化、架构设计
+   - Expert: 源码级理解、系统设计、技术决策
+
+【面试规则】：
+- 每次只问一个问题，等待候选人回答后再继续
+- 问题要有层次，从基础到深入
+- 保持专业、友好的态度
+- 适时给予正面反馈和引导
+- 注意考察：技术深度、问题解决能力、沟通表达
+
+请用中文进行面试。`;
+    }
+
+    // Fallback（理论上不会到达这里，因为 DTO 已校验）
+    return this.generateSystemPrompt(session.jobTitle, session.jobDescription, session.difficulty);
+  }
+
+  /**
+   * 从简历中提取关键内容
+   */
+  private extractResumeContent(resume: any): string {
+    // 优先使用 analysisReport 中的结构化数据
+    if (resume.analysisReport) {
+      const report = resume.analysisReport as any;
+      const sections: string[] = [];
+
+      // 提取关键信息
+      if (report.keywordAnalysis?.matched) {
+        sections.push(`技术栈：${report.keywordAnalysis.matched.join('、')}`);
+      }
+
+      if (report.structureAnalysis?.sections) {
+        sections.push(`简历章节：${report.structureAnalysis.sections.join('、')}`);
+      }
+
+      if (sections.length > 0) {
+        return sections.join('\n') + '\n\n' + (resume.rawContent?.substring(0, 2000) || '');
+      }
+    }
+
+    // Fallback: 使用原始文本（限制长度避免 token 超限）
+    return resume.rawContent?.substring(0, 3000) || '简历内容暂无';
+  }
+
+  /**
+   * 🚀 动态生成开场白
+   */
+  private generateDynamicGreeting(session: any): string {
+    const difficultyMap = {
+      EASY: 'Junior（初级）',
+      MEDIUM: 'Mid-Level（中级）',
+      HARD: 'Senior（高级）',
+      EXPERT: 'Big Tech Expert（专家级）',
+    };
+
+    const difficultyLabel = difficultyMap[session.difficulty] || 'Mid-Level（中级）';
+
+    // Resume 模式开场白
+    if (session.mode === 'RESUME') {
+      return `你好！我是你的 AI 面试官。今天我们将进行「${session.jobTitle}」岗位的模拟面试，难度级别为 ${difficultyLabel}。
+
+我已经仔细阅读了你的简历，接下来会针对你的项目经验和技术栈进行深度提问。请放轻松，把这当作一次真实的面试体验。
+
+准备好了吗？那我们开始吧！
+
+首先，请简单介绍一下你自己，重点讲讲你最近的一个项目，包括你在其中的角色、使用的技术栈，以及遇到的最大挑战是什么？`;
+    }
+
+    // Topic 模式开场白
+    if (session.mode === 'TOPIC') {
+      const topicsText = session.topics.join('、');
+      return `你好！我是你的 AI 面试官。今天我们将进行「${session.jobTitle}」岗位的专项技术盲测，难度级别为 ${difficultyLabel}。
+
+本次考核的专项领域为：${topicsText}
+
+这是一场纯技术能力的考察，我会直接从这些领域中挑选高频面试题进行提问。请放轻松，尽可能展示你的技术深度和思考过程。
+
+准备好了吗？那我们开始吧！
+
+第一个问题：请解释一下你对「${session.topics[0]}」的理解，并举例说明在实际项目中如何应用？`;
+    }
+
+    // Fallback
+    return this.generateGreeting(session.jobTitle);
+  }
+
+  /**
+   * 生成系统提示词（旧版，保留作为 Fallback）
    */
   private generateSystemPrompt(
     jobTitle: string,
@@ -378,7 +577,7 @@ export class InterviewService {
   }
 
   /**
-   * 生成开场白
+   * 生成开场白（旧版，保留作为 Fallback）
    */
   private generateGreeting(jobTitle: string): string {
     return `你好！我是你的 AI 面试官。今天我们将进行「${jobTitle}」岗位的模拟面试。
