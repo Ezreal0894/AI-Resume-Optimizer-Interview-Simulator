@@ -20,37 +20,37 @@ datasource db {
 // 用户模型
 // ============================================
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  password     String
-  
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+
   // 基本信息
-  name         String?
-  title        String?  // 职业头衔
-  bio          String?  @db.Text
-  location     String?
-  website      String?
-  avatar       String?
-  
+  name     String?
+  title    String? // 职业头衔
+  bio      String? @db.Text
+  location String?
+  website  String?
+  avatar   String?
+
   // Onboarding 标签（最多 10 个）
-  tags         String[] @default([])
-  
+  tags String[] @default([])
+
   // 会员与积分
-  plan         UserPlan @default(FREE)
+  plan         UserPlan  @default(FREE)
   planExpireAt DateTime?
-  credits      Int      @default(50)
-  
+  credits      Int       @default(50)
+
   // 时间戳
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // 关联
   resumes           Resume[]
   interviewSessions InterviewSession[]
-  
+
   // Token 管理
-  refreshTokenHash  String?
-  
+  refreshTokenHash String?
+
   @@map("users")
 }
 
@@ -73,31 +73,37 @@ enum UserPlan {
 // }
 // ============================================
 model Resume {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // 文件元信息
-  fileName      String
-  fileSize      Int
-  mimeType      String
-  rawContent    String   @db.Text
-  
+  fileName   String
+  fileSize   Int
+  mimeType   String
+  rawContent String @db.Text
+
   // JD 对标
-  targetRole    String?
-  targetJd      String?  @db.Text
-  
+  targetRole String?
+  targetJd   String? @db.Text
+
   // AI 分析报告（高阶 ATS 结构）
-  analysisReport Json?   @db.JsonB
-  
+  analysisReport Json? @db.JsonB
+
+  // 🆕 Phase 3: 提取数据缓存（白盒化知识点）
+  extractionData Json? @db.JsonB
+
   // 状态与置顶
-  status    ResumeStatus @default(PENDING)
-  isPinned  Boolean      @default(false)
-  
+  status   ResumeStatus @default(PENDING)
+  isPinned Boolean      @default(false)
+
   // 时间戳
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
+  // 🆕 关联面试会话
+  interviewSessions InterviewSession[]
+
   @@index([userId])
   @@index([userId, createdAt])
   @@map("resumes")
@@ -112,6 +118,7 @@ enum ResumeStatus {
 
 // ============================================
 // 面试会话模型
+// 🔄 v3.0 新增：mode, resumeId, topics（支持 Resume/Topic 双模式）
 // 🔄 新增：isPinned
 // metrics JSON 结构：
 // {
@@ -130,34 +137,47 @@ enum ResumeStatus {
 // }
 // ============================================
 model InterviewSession {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // 面试配置
   jobTitle       String
   jobDescription String?
   difficulty     InterviewDifficulty @default(MEDIUM)
-  
+
+  // 🆕 面试模式配置（Resume 模式 vs Topic 盲测模式）
+  mode                   InterviewMode @default(RESUME)
+  resumeId               String? // Resume 模式：关联简历 ID
+  resume                 Resume?       @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  customKnowledgePoints  String[]      @default([]) // Resume 模式：用户确认的知识点
+  topics                 String[]      @default([]) // Topic 模式：专项话题数组
+
   // 状态与置顶
-  status    InterviewStatus @default(IN_PROGRESS)
-  isPinned  Boolean         @default(false)
-  
+  status   InterviewStatus @default(IN_PROGRESS)
+  isPinned Boolean         @default(false)
+
   // AI 分析报告
-  metrics   Json?    @db.JsonB
-  
+  metrics Json? @db.JsonB
+
   // 时间戳
-  startedAt   DateTime @default(now())
-  endedAt     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
   // 对话记录
-  messages  InterviewMessage[]
-  
+  messages InterviewMessage[]
+
   @@index([userId])
   @@index([userId, createdAt])
+  @@index([resumeId])
   @@map("interview_sessions")
+}
+
+enum InterviewMode {
+  RESUME // 基于简历的深度面试
+  TOPIC // 专项话题盲测
 }
 
 enum InterviewDifficulty {
@@ -177,15 +197,15 @@ enum InterviewStatus {
 // 面试消息模型
 // ============================================
 model InterviewMessage {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   sessionId String
   session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
-  role      MessageRole
-  content   String      @db.Text
-  
+
+  role    MessageRole
+  content String      @db.Text
+
   createdAt DateTime @default(now())
-  
+
   @@index([sessionId])
   @@map("interview_messages")
 }
