@@ -76,6 +76,10 @@ export interface UseInterviewEngineReturn {
   micVolume: number;
   isMicAvailable: boolean;
   
+  // 🎙️ 语音控制状态（任务 2）
+  canReplaySpeech: boolean;  // 是否可以重播（有最后一条 AI 消息且不在 thinking）
+  isSpeaking: boolean;        // 是否正在播报
+  
   // 操作方法
   initSession: (jobTitle: string, difficulty?: string) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
@@ -84,6 +88,7 @@ export interface UseInterviewEngineReturn {
   endSession: () => Promise<void>;
   resetEngine: () => void;
   speakText: (text: string) => void;
+  toggleSpeech: () => void;   // 🎙️ 停止/重播切换（任务 2）
 }
 
 export function useInterviewEngine(): UseInterviewEngineReturn {
@@ -113,6 +118,7 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
   // 本地状态（不需要持久化）
   const micVolumeRef = useRef(0);
   const isMicAvailableRef = useRef(true);
+  const lastAIMessageRef = useRef<string>(''); // 存储最后一条 AI 消息用于重播
   
   // Refs
   const streamControllerRef = useRef<StreamController | null>(null);
@@ -236,6 +242,23 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
   }, [aiState, setAIState]);
 
   // ==========================================
+  // 停止/重播控制
+  // ==========================================
+  const toggleSpeech = useCallback(() => {
+    if (aiState === 'speaking') {
+      // 正在说话 → 停止播报
+      console.log('🛑 User interrupted speech');
+      interruptSpeaking();
+    } else if (lastAIMessageRef.current) {
+      // 已停止 → 重新播报最后一条消息
+      console.log('🔊 Replaying last AI message');
+      speakText(lastAIMessageRef.current);
+    }
+  }, [aiState, interruptSpeaking]);
+
+  const canReplaySpeech = !!lastAIMessageRef.current && aiState !== 'thinking';
+
+  // ==========================================
   // 语音合成 - AI 说话
   // ==========================================
   const speakText = useCallback((text: string) => {
@@ -253,6 +276,9 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
       console.log('Empty text, skipping speech');
       return;
     }
+    
+    // 存储最后一条 AI 消息用于重播
+    lastAIMessageRef.current = cleanText;
     
     // 先取消之前的语音
     window.speechSynthesis.cancel();
@@ -372,7 +398,13 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
     
     try {
       setInitError(null);
-      const response = await interviewApi.createSession({ jobTitle, difficulty });
+      // 🔴 使用 v3.0 API - 默认使用 TOPIC 模式（无简历）
+      const response = await interviewApi.createSession({ 
+        mode: 'TOPIC',
+        jobTitle, 
+        difficulty,
+        topics: ['General Interview'] // 默认话题
+      });
       const { sessionId: newSessionId, greeting } = response.data.data;
       
       if (!isMountedRef.current) return;
@@ -498,6 +530,8 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
     recognition.continuous = false;
     recognition.interimResults = true;
     
+    let messageSent = false; // 标记是否发送了消息
+    
     recognition.onstart = () => {
       if (isMountedRef.current) {
         setAIState('listening');
@@ -519,6 +553,7 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
         // 🔒 空输入拦截 - 在这里也检查
         const trimmed = transcript.trim();
         if (trimmed && trimmed.length >= MIN_VALID_INPUT_LENGTH) {
+          messageSent = true; // 标记已发送消息
           sendMessage(trimmed);
         } else {
           console.log('Empty speech result ignored');
@@ -528,8 +563,12 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
     
     recognition.onend = () => {
       if (isMountedRef.current) {
-        setAIState('idle');
         stopVolumeMonitoring();
+        // 只有在没有发送消息时才设置为 idle
+        // 如果发送了消息，sendMessage 会将状态设置为 thinking
+        if (!messageSent) {
+          setAIState('idle');
+        }
       }
     };
     
@@ -602,6 +641,9 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
     hasGreeted,
     micVolume: micVolumeRef.current,
     isMicAvailable: isMicAvailableRef.current,
+    // 🎙️ 语音控制状态（任务 2）
+    canReplaySpeech,
+    isSpeaking: aiState === 'speaking',
     initSession,
     sendMessage,
     startListening,
@@ -609,5 +651,6 @@ export function useInterviewEngine(): UseInterviewEngineReturn {
     endSession,
     resetEngine,
     speakText,
+    toggleSpeech,
   };
 }

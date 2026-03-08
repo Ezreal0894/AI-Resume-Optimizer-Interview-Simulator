@@ -16,6 +16,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 import InterviewPage from './pages/InterviewPage';
+import InterviewHistoryPage from './pages/InterviewHistoryPage';
 import ReportPage from './pages/ReportPage';
 import SettingsPage from './pages/SettingsPage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -76,7 +77,9 @@ export default function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="interview" element={<InterviewPage />} />
+        <Route path="interview/history" element={<InterviewHistoryPage />} />
         <Route path="report" element={<ReportPage />} />
+        <Route path="report/:sessionId" element={<ReportPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

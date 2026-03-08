@@ -5,7 +5,8 @@ import {
   BarChart3, 
   FolderOpen,
   Settings, 
-  Sparkles
+  Sparkles,
+  History
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../../stores/authStore';
@@ -14,6 +15,7 @@ import ThemeToggle from '../theme/ThemeToggle';
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { path: '/dashboard/interview', label: 'Mock Interview', icon: Mic },
+  { path: '/dashboard/interview/history', label: 'Interview History', icon: History },
   { path: '/dashboard/report', label: 'Reports', icon: BarChart3 },
   { path: '/dashboard/documents', label: 'Documents', icon: FolderOpen },
   { path: '/dashboard/settings', label: 'Settings', icon: Settings },

@@ -3,13 +3,15 @@ import {
   LayoutDashboard, 
   Mic, 
   BarChart3, 
-  FolderOpen
+  FolderOpen,
+  History
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: LayoutDashboard, end: true },
   { path: '/dashboard/interview', label: 'Interview', icon: Mic },
+  { path: '/dashboard/interview/history', label: 'History', icon: History },
   { path: '/dashboard/documents', label: 'Documents', icon: FolderOpen },
   { path: '/dashboard/report', label: 'Reports', icon: BarChart3 },
 ];

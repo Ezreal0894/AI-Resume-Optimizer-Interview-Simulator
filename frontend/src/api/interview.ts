@@ -18,20 +18,22 @@ export interface InterviewSession {
   metrics?: InterviewMetrics;
   startedAt: string;
   endedAt?: string;
+  isPinned?: boolean;
 }
 
 export interface InterviewMetrics {
   overallScore: number;
-  dimensions: {
-    technicalDepth: number;
+  radar: {
+    technical: number;
     communication: number;
-    logicalThinking: number;
-    projectExperience: number;
-    stressResistance: number;
+    problemSolving: number;
+    cultureFit: number;
+    leadership: number;
   };
-  strengths: string[];
-  improvements: string[];
-  detailedFeedback: string;
+  feedback: {
+    strengths: string[];
+    improvements: string[];
+  };
 }
 
 // SSE 流控制器类型
@@ -47,8 +49,16 @@ const SSE_CONFIG = {
 };
 
 export const interviewApi = {
-  // 创建面试会话
-  createSession: (params: { jobTitle: string; jobDescription?: string; difficulty?: string }) =>
+  // 创建面试会话（v3.0 支持 Resume/Topic 双模式 + Phase 3 自定义知识点）
+  createSession: (params: { 
+    mode: 'RESUME' | 'TOPIC';
+    jobTitle: string; 
+    jobDescription?: string; 
+    difficulty?: string;
+    resumeId?: string;  // Resume 模式必填
+    customKnowledgePoints?: string[];  // 🆕 Phase 3: Resume 模式可选
+    topics?: string[];  // Topic 模式必填
+  }) =>
     apiClient.post<{ message: string; data: { sessionId: string; greeting: string } }>(
       '/interview/session',
       params
@@ -188,6 +198,24 @@ export const interviewApi = {
   // 获取会话详情
   getSessionDetail: (sessionId: string) =>
     apiClient.get<{ data: InterviewSession & { messages: ChatMessage[] } }>(
+      `/interview/session/${sessionId}`
+    ),
+
+  // 获取历史趋势数据
+  getHistoryTrend: () =>
+    apiClient.get<{ data: { sessionId: string; overallScore: number; createdAt: Date }[] }>(
+      '/interview/history/trend'
+    ),
+
+  // 切换会话置顶状态
+  togglePin: (sessionId: string) =>
+    apiClient.patch<{ data: { id: string; isPinned: boolean } }>(
+      `/interview/session/${sessionId}/pin`
+    ),
+
+  // 删除面试会话
+  deleteSession: (sessionId: string) =>
+    apiClient.delete<{ message: string }>(
       `/interview/session/${sessionId}`
     ),
 };

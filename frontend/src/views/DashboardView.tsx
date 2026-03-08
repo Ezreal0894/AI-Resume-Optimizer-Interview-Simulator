@@ -10,12 +10,14 @@ import {
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
 import { userApi, ActivityItem } from '../api/user';
+import MockInterviewWizardModal from '../components/interview/MockInterviewWizardModal';
 
 const DashboardView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
 
   // 获取最近活动
   useEffect(() => {
@@ -89,7 +91,7 @@ const DashboardView: React.FC = () => {
           whileHover={{ scale: 1.02, y: -4 }}
           whileTap={{ scale: 0.98 }}
           transition={{ type: 'spring', stiffness: 300 }}
-          onClick={() => handleViewChange('interview')}
+          onClick={() => setIsWizardOpen(true)}
           className="md:col-span-5 bg-slate-900/90 backdrop-blur-2xl p-5 md:p-8 rounded-3xl border border-white/10 shadow-xl shadow-slate-900/20 hover:shadow-emerald-500/10 transition-all cursor-pointer group relative overflow-hidden"
         >
           <div className="absolute bottom-0 left-0 w-full h-full bg-gradient-to-t from-emerald-900/20 to-transparent opacity-50"></div>
@@ -166,6 +168,12 @@ const DashboardView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Mock Interview Wizard Modal */}
+      <MockInterviewWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+      />
     </div>
   );
 };

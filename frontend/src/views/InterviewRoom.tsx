@@ -1,11 +1,14 @@
 /**
- * 面试间 - 终极进化版
+ * 面试间 - 终极进化版 + 沉浸式全屏体验
  * 
  * 核心能力：
  * 1. AIState 状态机视觉映射
  * 2. 霸气打断机制
  * 3. 顶部进度台 + 自动终结
  * 4. 麦克风音量可视化 + 降级文字输入
+ * 5. 🆕 沉浸式全屏模式（无导航栏/侧边栏）
+ * 6. 🆕 悬浮主题切换器
+ * 7. 🆕 防误触守卫（beforeunload + popstate）
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -18,12 +21,20 @@ import {
   Bot,
   AlertCircle,
   Clock,
-  MessageSquare
+  MessageSquare,
+  Volume2,
+  VolumeX,
+  StopCircle,
+  LogOut,
+  Loader2,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useInterviewEngine } from '../hooks/useInterviewEngine';
 import { AIState } from '../stores/interviewStore';
+import { interviewApi } from '../api/interview';
+import ThemeToggle from '../components/theme/ThemeToggle';
 
 // 格式化时间
 const formatTime = (seconds: number): string => {
@@ -138,6 +149,91 @@ const ThinkingBubble: React.FC = () => (
   </motion.div>
 );
 
+// 🚪 结束面试确认弹窗（任务 3）
+const EndInterviewModal: React.FC<{ 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void;
+  isLoading: boolean;
+}> = ({ isOpen, onClose, onConfirm, isLoading }) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={!isLoading ? onClose : undefined}
+            className="fixed inset-0 z-[90] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            {/* Modal Container */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative"
+            >
+              {/* Gradient Header */}
+              <div className="relative h-32 bg-gradient-to-br from-red-500 via-rose-500 to-pink-500 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.1),transparent)]" />
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)]"
+                />
+                <div className="relative z-10 w-16 h-16 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/30">
+                  <LogOut className="w-8 h-8 text-white" />
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    确定要结束面试吗？
+                  </h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
+                    系统将为您生成多维战力报告，包含技术深度、沟通能力、逻辑思维等维度的详细分析。
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={onClose}
+                    disabled={isLoading}
+                    className="flex-1 px-6 py-3 rounded-xl font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={onConfirm}
+                    disabled={isLoading}
+                    className="flex-1 px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 transition-all shadow-lg shadow-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>生成中...</span>
+                      </>
+                    ) : (
+                      <span>确认结束</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
 // 面试结束遮罩
 const EndOverlay: React.FC<{ onNavigate: () => void }> = ({ onNavigate }) => {
   useEffect(() => {
@@ -177,9 +273,13 @@ const InterviewView: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [showTextFallback, setShowTextFallback] = useState(false);
+  const [showEndModal, setShowEndModal] = useState(false); // 🚪 任务 3
+  const [isEndingSession, setIsEndingSession] = useState(false); // 🚪 任务 3
+  const [cameraError, setCameraError] = useState<string | null>(null); // 🎥 摄像头错误状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const dragConstraintsRef = useRef<HTMLDivElement>(null); // 🎥 拖拽约束容器
 
   const {
     aiState,
@@ -192,13 +292,65 @@ const InterviewView: React.FC = () => {
     initError,
     isMicAvailable,
     hasGreeted,
+    canReplaySpeech,
+    isSpeaking,
     initSession,
     sendMessage,
     startListening,
     stopListening,
     endSession,
     resetEngine,
+    toggleSpeech,
   } = useInterviewEngine();
+
+  // 🛑 改造 3：防误触守卫 - beforeunload 事件
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // 只有在面试进行中时才拦截
+      if (sessionId && !isInterviewEnded) {
+        e.preventDefault();
+        e.returnValue = ''; // 触发浏览器原生的"离开此网站？"警告框
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessionId, isInterviewEnded]);
+
+  // 🛑 改造 4：防误触守卫 - popstate 事件（浏览器后退）
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      // 只有在面试进行中时才拦截
+      if (sessionId && !isInterviewEnded) {
+        const confirmLeave = window.confirm(
+          '⚠️ 面试正在进行中，确定要离开吗？\n\n离开后当前面试进度将会丢失。'
+        );
+        
+        if (!confirmLeave) {
+          // 用户选择留下，恢复历史记录
+          window.history.pushState(null, '', window.location.pathname);
+        } else {
+          // 用户确认离开，清理资源
+          if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+          }
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
+          }
+          resetEngine();
+        }
+      }
+    };
+
+    // 在历史记录栈中添加一个状态，用于拦截后退
+    window.history.pushState(null, '', window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [sessionId, isInterviewEnded, resetEngine]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -207,9 +359,25 @@ const InterviewView: React.FC = () => {
 
   // 初始化会话（带开场白锁检查）
   useEffect(() => {
-    // 只有在没有 sessionId 或没有播报过开场白时才初始化
-    if (!sessionId || !hasGreeted) {
-      initSession('Frontend Engineer', 'MEDIUM');
+    // 检查是否有活跃会话
+    if (!sessionId) {
+      // 没有会话，跳转回首页
+      console.warn('No active interview session, redirecting to dashboard');
+      navigate('/dashboard');
+      return;
+    }
+    
+    // 有会话但未播报开场白，恢复播报
+    if (!hasGreeted && messages.length > 0) {
+      const greeting = messages.find(m => m.role === 'assistant')?.content;
+      if (greeting) {
+        setTimeout(() => {
+          if (videoRef.current) {
+            // 延迟播报，确保组件已挂载
+            window.speechSynthesis?.speak(new SpeechSynthesisUtterance(greeting));
+          }
+        }, 500);
+      }
     }
     
     return () => {
@@ -217,7 +385,7 @@ const InterviewView: React.FC = () => {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [sessionId, hasGreeted, messages, navigate]);
 
   // 麦克风不可用时显示文字输入
   useEffect(() => {
@@ -226,15 +394,82 @@ const InterviewView: React.FC = () => {
     }
   }, [isMicAvailable, sessionId]);
 
-  // 摄像头绑定
+  // 🎥 修复 1：正确的 MediaStream 绑定机制
   useEffect(() => {
     if (isCameraOn && videoRef.current && mediaStreamRef.current) {
+      // 安全地将流绑定到 video 元素
       videoRef.current.srcObject = mediaStreamRef.current;
+      
+      // 确保视频开始播放
+      videoRef.current.play().catch(err => {
+        console.error('Video play error:', err);
+      });
     }
-  }, [isCameraOn]);
+  }, [isCameraOn, mediaStreamRef.current]);
 
-  // 面试结束跳转
+  // 🚪 任务 3：优雅的结束面试流程
+  const handleEndInterview = async () => {
+    if (!sessionId || isEndingSession) return;
+    
+    setIsEndingSession(true);
+    
+    try {
+      // 1. 调用后端 API 结束会话并生成报告
+      console.log('🚪 Ending interview session:', sessionId);
+      await interviewApi.endSession(sessionId);
+      
+      // 2. 底层资源大扫除
+      console.log('🧹 Cleaning up resources...');
+      
+      // 停止 TTS 语音
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      
+      // 停止摄像头和麦克风
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => {
+          console.log('🛑 Stopping track:', track.kind);
+          track.stop();
+        });
+        mediaStreamRef.current = null;
+      }
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      
+      // 调用引擎清理函数
+      resetEngine();
+      
+      // 3. 关闭弹窗
+      setShowEndModal(false);
+      
+      // 4. 丝滑跳转到报告页
+      console.log('🧭 Navigating to report page');
+      navigate('/dashboard/report');
+      
+    } catch (error: any) {
+      console.error('❌ Failed to end interview:', error);
+      alert(`结束面试失败: ${error.response?.data?.message || error.message || '未知错误'}`);
+      setIsEndingSession(false);
+    }
+  };
+
+  // 面试结束跳转（自动结束时使用）
   const handleNavigateToReport = () => {
+    // 资源清理
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
     resetEngine();
     navigate('/dashboard/report');
   };
@@ -255,27 +490,69 @@ const InterviewView: React.FC = () => {
     }
   };
 
-  // 摄像头控制
+  // 🎥 修复 2：摄像头控制逻辑（带权限异常拦截）
   const handleVideoClick = async () => {
     if (isCameraOn) {
+      // 关闭摄像头
       if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current.getTracks().forEach(track => {
+          console.log('🛑 Stopping camera track:', track.kind);
+          track.stop();
+        });
         mediaStreamRef.current = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
       setIsCameraOn(false);
+      setCameraError(null);
     } else {
+      // 开启摄像头
       try {
+        console.log('📹 Requesting camera access...');
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } 
+          video: { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 }, 
+            facingMode: 'user' 
+          } 
         });
+        
+        console.log('✅ Camera stream obtained:', stream.id);
         mediaStreamRef.current = stream;
         setIsCameraOn(true);
+        setCameraError(null);
+        
+        // 立即绑定到 video 元素
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(err => {
+            console.error('Video play error:', err);
+          });
+        }
       } catch (error: any) {
-        console.error('Camera error:', error);
-        alert(error.name === 'NotAllowedError' ? '请允许访问摄像头权限' : '无法访问摄像头');
+        console.error('❌ Camera error:', error);
+        
+        // 🎥 修复 3：极致的权限异常拦截
+        let errorMessage = '无法访问摄像头';
+        
+        if (error.name === 'NotAllowedError') {
+          errorMessage = '摄像头权限被拒绝，请在浏览器地址栏中允许摄像头访问';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = '未检测到摄像头设备，请检查硬件连接';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = '摄像头正被其他应用占用，请关闭其他应用后重试';
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage = '摄像头不支持请求的分辨率';
+        } else {
+          errorMessage = `摄像头错误: ${error.message || '未知错误'}`;
+        }
+        
+        setCameraError(errorMessage);
+        setIsCameraOn(false);
+        
+        // 3 秒后自动清除错误提示
+        setTimeout(() => setCameraError(null), 5000);
       }
     }
   };
@@ -304,6 +581,19 @@ const InterviewView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col md:flex-row overflow-hidden bg-slate-50 relative z-10 pb-20 md:pb-0">
+      {/* � 改造 2：悬浮主题切换器（右上角）*/}
+      <div className="fixed top-6 right-6 z-[60]">
+        <ThemeToggle />
+      </div>
+
+      {/* �🚪 结束面试确认弹窗（任务 3）*/}
+      <EndInterviewModal
+        isOpen={showEndModal}
+        onClose={() => setShowEndModal(false)}
+        onConfirm={handleEndInterview}
+        isLoading={isEndingSession}
+      />
+
       {/* 面试结束遮罩 */}
       <AnimatePresence>
         {isInterviewEnded && <EndOverlay onNavigate={handleNavigateToReport} />}
@@ -345,8 +635,35 @@ const InterviewView: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* 🎥 摄像头错误提示 */}
+      <AnimatePresence>
+        {cameraError && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-20 left-4 right-4 z-40 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3 shadow-lg"
+          >
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-900 dark:text-red-100 mb-1">摄像头访问失败</p>
+              <p className="text-sm text-red-700 dark:text-red-300">{cameraError}</p>
+            </div>
+            <button
+              onClick={() => setCameraError(null)}
+              className="text-red-400 hover:text-red-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 主视频区域 */}
-      <div className="flex-none md:flex-1 h-[35vh] md:h-auto flex flex-col relative p-4 md:p-6 z-10">
+      <div 
+        ref={dragConstraintsRef}
+        className="flex-none md:flex-1 h-[35vh] md:h-auto flex flex-col relative p-4 md:p-6 z-10"
+      >
         <div className="flex-1 bg-slate-900 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden flex items-center justify-center group">
           {/* 背景光效 */}
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-slate-900 to-slate-900 pointer-events-none" />
@@ -370,6 +687,17 @@ const InterviewView: React.FC = () => {
             <span className="text-[10px] md:text-xs font-bold text-white tracking-wide">LIVE SESSION</span>
           </div>
 
+          {/* 🚪 结束面试按钮（任务 3 - 桌面端）*/}
+          <motion.button
+            onClick={() => setShowEndModal(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="absolute top-4 right-4 md:top-8 md:right-8 bg-red-500/90 hover:bg-red-600 backdrop-blur-md border border-red-400/30 px-4 py-2 md:px-5 md:py-2.5 rounded-full flex items-center gap-2 z-20 shadow-lg shadow-red-500/30 transition-all group"
+          >
+            <LogOut className="w-4 h-4 md:w-4 md:h-4 text-white group-hover:rotate-12 transition-transform" />
+            <span className="text-xs md:text-sm font-bold text-white tracking-wide">结束面试</span>
+          </motion.button>
+
           {/* AI 头像 */}
           <div className="relative z-10 flex flex-col items-center scale-75 md:scale-100">
             <AIAvatarVisual aiState={aiState} />
@@ -378,18 +706,50 @@ const InterviewView: React.FC = () => {
             </p>
           </div>
 
-          {/* 用户摄像头预览 */}
-          <div className="absolute bottom-4 right-4 md:bottom-8 md:right-8 w-24 h-16 md:w-56 md:h-40 bg-slate-800/80 backdrop-blur-xl rounded-xl md:rounded-2xl shadow-2xl border border-white/10 overflow-hidden group-hover:scale-105 transition-transform duration-500">
-            <div className="w-full h-full flex items-center justify-center relative">
-              {isCameraOn ? (
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-              ) : (
-                <User className="w-6 h-6 md:w-10 md:h-10 text-slate-500" />
-              )}
-              <div className="absolute bottom-1 left-1 md:bottom-3 md:left-3 bg-black/50 backdrop-blur-sm px-1.5 py-0.5 md:px-2 md:py-1 rounded-md text-[8px] md:text-[10px] font-bold text-white">YOU</div>
-              {isCameraOn && <div className="absolute top-1 right-1 md:top-2 md:right-2 w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
-            </div>
-          </div>
+          {/* 🎥 改造：可拖拽的悬浮画中画 (Draggable PiP) */}
+          <AnimatePresence>
+            {isCameraOn && (
+              <motion.div
+                drag
+                dragConstraints={dragConstraintsRef}
+                dragElastic={0.1}
+                dragMomentum={false}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ cursor: 'grabbing' }}
+                className="absolute bottom-6 right-6 md:bottom-8 md:right-8 w-32 h-24 md:w-48 md:h-36 bg-slate-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-white/20 overflow-hidden cursor-grab active:cursor-grabbing z-30"
+              >
+                <div className="w-full h-full flex items-center justify-center relative">
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className="w-full h-full object-cover scale-x-[-1]"
+                  />
+                  
+                  {/* YOU 标签 */}
+                  <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold text-white">
+                    YOU
+                  </div>
+                  
+                  {/* 绿色指示灯 */}
+                  <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                  
+                  {/* 拖拽提示图标 */}
+                  <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-5 h-5 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
 
@@ -416,6 +776,32 @@ const InterviewView: React.FC = () => {
               {aiState === 'listening' ? <Mic className="w-7 h-7" /> : <MicOff className="w-7 h-7" />}
             </button>
           </div>
+
+          {/* 🎙️ 语音控制按钮（任务 2）*/}
+          <motion.button
+            onClick={toggleSpeech}
+            disabled={aiState === 'thinking' || !canReplaySpeech}
+            whileTap={{ scale: 0.9 }}
+            className={`relative w-16 h-16 rounded-full backdrop-blur-xl border flex items-center justify-center shadow-lg transition-all duration-300 group ${
+              isSpeaking
+                ? 'bg-red-500 text-white border-red-400 shadow-red-500/30 hover:bg-red-600'
+                : canReplaySpeech
+                  ? 'bg-white/40 text-slate-600 border-white/40 hover:bg-white hover:scale-110'
+                  : 'bg-white/20 text-slate-400 border-white/20 opacity-50 cursor-not-allowed'
+            }`}
+            title={isSpeaking ? '停止播报' : '重新播报'}
+          >
+            {isSpeaking ? (
+              <StopCircle className="w-7 h-7" />
+            ) : (
+              <Volume2 className="w-7 h-7" />
+            )}
+            
+            {/* Tooltip */}
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              {isSpeaking ? '停止播报' : '重新播报'}
+            </div>
+          </motion.button>
 
           <button 
             onClick={handleVideoClick}
@@ -543,6 +929,26 @@ const InterviewView: React.FC = () => {
           >
             {aiState === 'listening' ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
           </button>
+
+          {/* 🎙️ 语音控制按钮（任务 2 - 移动端）*/}
+          <motion.button
+            onClick={toggleSpeech}
+            disabled={aiState === 'thinking' || !canReplaySpeech}
+            whileTap={{ scale: 0.9 }}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+              isSpeaking
+                ? 'bg-red-500 text-white'
+                : canReplaySpeech
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white/10 text-slate-500 opacity-50'
+            }`}
+          >
+            {isSpeaking ? (
+              <StopCircle className="w-5 h-5" />
+            ) : (
+              <Volume2 className="w-5 h-5" />
+            )}
+          </motion.button>
 
           <button 
             onClick={handleVideoClick}

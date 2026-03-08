@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle2, 
   Sparkles, 
   BarChart3,
-  Download
+  Download,
+  Loader2,
+  AlertCircle,
+  TrendingUp
 } from 'lucide-react';
 import { 
   Radar, 
@@ -14,7 +18,13 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid
 } from 'recharts';
 import { 
   motion, 
@@ -22,7 +32,8 @@ import {
   useTransform, 
   animate 
 } from 'framer-motion';
-import { RADAR_DATA } from '../constants';
+import { useInterviewStore } from '../stores/interviewStore';
+import { interviewApi } from '../api/interview';
 
 function AnimatedCounter({ value }: { value: number }) {
   const count = useMotionValue(0);
@@ -36,13 +47,134 @@ function AnimatedCounter({ value }: { value: number }) {
   return <motion.span>{rounded}</motion.span>;
 }
 
-const ReportsView = () => {
-  const score = 88;
+interface InterviewMetrics {
+  overallScore: number;
+  radar: {
+    technical: number;
+    communication: number;
+    problemSolving: number;
+    cultureFit: number;
+    leadership: number;
+  };
+  feedback: {
+    strengths: string[];
+    improvements: string[];
+  };
+}
+
+interface TrendDataPoint {
+  sessionId: string;
+  overallScore: number;
+  createdAt: Date;
+}
+
+interface ReportViewProps {
+  sessionIdFromUrl?: string; // 从 URL 参数传入的 sessionId（用于查看历史报告）
+}
+
+const ReportsView: React.FC<ReportViewProps> = ({ sessionIdFromUrl }) => {
+  const navigate = useNavigate();
+  const { sessionId: sessionIdFromStore } = useInterviewStore();
+  
+  // 优先使用 URL 参数的 sessionId，否则使用 store 中的 sessionId
+  const sessionId = sessionIdFromUrl || sessionIdFromStore;
+  
+  const [metrics, setMetrics] = useState<InterviewMetrics | null>(null);
+  const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 获取面试报告数据
+  useEffect(() => {
+    const fetchReportData = async () => {
+      if (!sessionId) {
+        setError('未找到面试会话');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        
+        // 并行获取会话详情和历史趋势
+        const [sessionRes, trendRes] = await Promise.all([
+          interviewApi.getSessionDetail(sessionId),
+          interviewApi.getHistoryTrend()
+        ]);
+
+        const sessionData = sessionRes.data.data;
+        
+        if (!sessionData.metrics) {
+          setError('面试报告尚未生成，请先结束面试');
+          setIsLoading(false);
+          return;
+        }
+
+        setMetrics(sessionData.metrics);
+        setTrendData(trendRes.data.data || []);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to fetch report:', err);
+        setError(err.response?.data?.message || '加载报告失败');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReportData();
+  }, [sessionId]);
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-600">加载面试报告中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !metrics) {
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-slate-900 mb-2">无法加载报告</h3>
+          <p className="text-slate-600 mb-6">{error || '未找到面试数据'}</p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const score = metrics.overallScore;
   const data = [
     { name: 'Score', value: score },
     { name: 'Remaining', value: 100 - score },
   ];
   const COLORS = ['#4F46E5', '#E2E8F0'];
+
+  // 转换雷达图数据
+  const radarData = [
+    { subject: 'Technical', A: metrics.radar.technical, fullMark: 100 },
+    { subject: 'Communication', A: metrics.radar.communication, fullMark: 100 },
+    { subject: 'Problem Solving', A: metrics.radar.problemSolving, fullMark: 100 },
+    { subject: 'Culture Fit', A: metrics.radar.cultureFit, fullMark: 100 },
+    { subject: 'Leadership', A: metrics.radar.leadership, fullMark: 100 },
+  ];
+
+  // 转换趋势图数据
+  const trendChartData = trendData.map((point, index) => ({
+    session: `#${index + 1}`,
+    score: point.overallScore,
+    date: new Date(point.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  }));
 
   const handleDownloadPDF = () => {
     // 使用浏览器打印功能生成 PDF
@@ -120,10 +252,10 @@ const ReportsView = () => {
           <h3 className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 md:mb-6 text-center md:text-left">Skill Breakdown</h3>
           <div className="h-64 md:h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={RADAR_DATA}>
+              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                 <PolarGrid stroke="#E2E8F0" strokeWidth={1.5} />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 10, fontWeight: 600 }} />
-                <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                 <Radar
                   name="Candidate"
                   dataKey="A"
@@ -144,6 +276,60 @@ const ReportsView = () => {
         </div>
       </div>
 
+      {/* Historical Trend Chart */}
+      {trendChartData.length > 1 && (
+        <div className="bg-white/60 backdrop-blur-2xl p-6 md:p-8 rounded-3xl border border-white/40 shadow-xl shadow-indigo-500/5 mb-4 md:mb-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-lg md:text-xl font-bold text-slate-900">Performance Trend</h3>
+              <p className="text-sm text-slate-500">Your progress over the last {trendChartData.length} interviews</p>
+            </div>
+          </div>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                <XAxis 
+                  dataKey="session" 
+                  tick={{ fill: '#64748B', fontSize: 12 }}
+                  stroke="#CBD5E1"
+                />
+                <YAxis 
+                  domain={[0, 100]} 
+                  tick={{ fill: '#64748B', fontSize: 12 }}
+                  stroke="#CBD5E1"
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '12px',
+                    padding: '12px'
+                  }}
+                  labelFormatter={(label, payload) => {
+                    if (payload && payload[0]) {
+                      return `${label} - ${payload[0].payload.date}`;
+                    }
+                    return label;
+                  }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="score" 
+                  stroke="#4F46E5" 
+                  strokeWidth={3}
+                  dot={{ fill: '#4F46E5', r: 5 }}
+                  activeDot={{ r: 7, fill: '#6366F1' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
         <div className="bg-white/60 backdrop-blur-2xl p-6 md:p-8 rounded-3xl border border-white/40 shadow-xl shadow-emerald-500/5 hover:shadow-emerald-500/10 transition-all">
           <div className="flex items-center gap-4 mb-4 md:mb-6">
@@ -153,16 +339,16 @@ const ReportsView = () => {
             <h3 className="text-lg md:text-xl font-bold text-slate-900">Key Strengths</h3>
           </div>
           <ul className="space-y-3 md:space-y-5">
-            {[
-              "Strong technical explanation of microservices architecture.",
-              "Clear and concise communication style.",
-              "Demonstrated good problem-solving approach in the system design query."
-            ].map((item, i) => (
-              <li key={i} className="flex gap-3 md:gap-4 text-slate-700 font-medium text-sm md:text-base">
-                <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-emerald-500 flex-shrink-0 drop-shadow-sm" />
-                <span className="leading-relaxed">{item}</span>
-              </li>
-            ))}
+            {metrics.feedback.strengths.length > 0 ? (
+              metrics.feedback.strengths.map((item, i) => (
+                <li key={i} className="flex gap-3 md:gap-4 text-slate-700 font-medium text-sm md:text-base">
+                  <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-emerald-500 flex-shrink-0 drop-shadow-sm" />
+                  <span className="leading-relaxed">{item}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-slate-500 text-sm">暂无优势反馈</li>
+            )}
           </ul>
         </div>
 
@@ -174,18 +360,18 @@ const ReportsView = () => {
             <h3 className="text-lg md:text-xl font-bold text-slate-900">Areas for Improvement</h3>
           </div>
           <ul className="space-y-3 md:space-y-5">
-            {[
-              "Could provide more specific metrics on the project impact.",
-              "Body language was slightly rigid; try to maintain more eye contact.",
-              "Elaborate more on the 'Leadership' aspect of your role."
-            ].map((item, i) => (
-              <li key={i} className="flex gap-3 md:gap-4 text-slate-700 font-medium text-sm md:text-base">
-                <div className="w-5 h-5 md:w-6 md:h-6 rounded-full border-2 border-amber-200 flex items-center justify-center flex-shrink-0 mt-0.5 bg-amber-50">
-                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></div>
-                </div>
-                <span className="leading-relaxed">{item}</span>
-              </li>
-            ))}
+            {metrics.feedback.improvements.length > 0 ? (
+              metrics.feedback.improvements.map((item, i) => (
+                <li key={i} className="flex gap-3 md:gap-4 text-slate-700 font-medium text-sm md:text-base">
+                  <div className="w-5 h-5 md:w-6 md:h-6 rounded-full border-2 border-amber-200 flex items-center justify-center flex-shrink-0 mt-0.5 bg-amber-50">
+                    <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></div>
+                  </div>
+                  <span className="leading-relaxed">{item}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-slate-500 text-sm">暂无改进建议</li>
+            )}
           </ul>
         </div>
       </div>
