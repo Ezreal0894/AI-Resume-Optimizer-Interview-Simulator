@@ -14,7 +14,7 @@ const REFRESH_CONFIG = {
 // 创建 Axios 实例
 const apiClient = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 120000, // 🔧 增加到 120 秒，支持简历提取等耗时操作
   withCredentials: true, // 携带 Cookie（用于 Refresh Token）
 });
 
