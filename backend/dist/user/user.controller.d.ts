@@ -6,9 +6,9 @@ export declare class UserController {
     saveOnboarding(dto: OnboardingDto, userId: string): Promise<{
         message: string;
         data: {
+            id: string;
             email: string;
             name: string | null;
-            id: string;
             tags: string[];
             plan: import(".prisma/client").$Enums.UserPlan;
         };
@@ -16,9 +16,9 @@ export declare class UserController {
     getProfile(userId: string): Promise<{
         data: {
             avatarUrl: string | null;
+            id: string;
             email: string;
             name: string | null;
-            id: string;
             title: string | null;
             bio: string | null;
             location: string | null;
@@ -32,8 +32,8 @@ export declare class UserController {
     updateProfile(dto: UpdateProfileDto, userId: string): Promise<{
         message: string;
         data: {
-            name: string | null;
             id: string;
+            name: string | null;
             title: string | null;
             bio: string | null;
             location: string | null;

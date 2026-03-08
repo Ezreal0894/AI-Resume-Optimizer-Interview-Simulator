@@ -1,3 +1,7 @@
+export declare enum InterviewMode {
+    RESUME = "RESUME",
+    TOPIC = "TOPIC"
+}
 export declare enum InterviewDifficulty {
     EASY = "EASY",
     MEDIUM = "MEDIUM",
@@ -5,9 +9,13 @@ export declare enum InterviewDifficulty {
     EXPERT = "EXPERT"
 }
 export declare class CreateSessionDto {
+    mode: InterviewMode;
     jobTitle: string;
     jobDescription?: string;
     difficulty?: InterviewDifficulty;
+    resumeId?: string;
+    customKnowledgePoints?: string[];
+    topics?: string[];
 }
 export declare class ChatMessageDto {
     role: 'system' | 'assistant' | 'user';

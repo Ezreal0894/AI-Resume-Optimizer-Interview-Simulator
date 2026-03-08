@@ -69,6 +69,12 @@ let InterviewController = class InterviewController {
             data: session,
         };
     }
+    async deleteSession(sessionId, userId) {
+        await this.interviewService.deleteSession(sessionId, userId);
+        return {
+            message: '面试记录已删除',
+        };
+    }
 };
 exports.InterviewController = InterviewController;
 __decorate([
@@ -127,6 +133,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], InterviewController.prototype, "togglePin", null);
+__decorate([
+    (0, common_1.Delete)('session/:sessionId'),
+    __param(0, (0, common_1.Param)('sessionId')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], InterviewController.prototype, "deleteSession", null);
 exports.InterviewController = InterviewController = __decorate([
     (0, common_1.Controller)('interview'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

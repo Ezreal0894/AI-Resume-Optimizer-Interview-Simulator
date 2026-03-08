@@ -1,32 +1,31 @@
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { ResumeAnalysisReport } from './dto/resume.dto';
+import { ResumeAnalysisReport, ResumeExtractResult } from './dto/resume.dto';
 export declare class ResumeService {
     private readonly prisma;
     private readonly config;
     private llm;
     constructor(prisma: PrismaService, config: ConfigService);
+    extractResumeStructured(file: Express.Multer.File | null, userId: string, targetRole: string, resumeId?: string): Promise<ResumeExtractResult>;
+    private extractWithAI;
+    private validateAndNormalizeExtraction;
     analyzeResume(file: Express.Multer.File, userId: string, targetRole: string, targetJd?: string): Promise<{
         resume: any;
         analysis: ResumeAnalysisReport;
     }>;
     getUserResumes(userId: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.ResumeStatus;
-        isPinned: boolean;
         fileName: string;
         fileSize: number;
         targetRole: string | null;
+        status: import(".prisma/client").$Enums.ResumeStatus;
+        isPinned: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }[]>;
     getResumeDetail(resumeId: string, userId: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         userId: string;
-        status: import(".prisma/client").$Enums.ResumeStatus;
-        isPinned: boolean;
         fileName: string;
         fileSize: number;
         mimeType: string;
@@ -34,6 +33,11 @@ export declare class ResumeService {
         targetRole: string | null;
         targetJd: string | null;
         analysisReport: import("@prisma/client/runtime/library").JsonValue | null;
+        extractionData: import("@prisma/client/runtime/library").JsonValue | null;
+        status: import(".prisma/client").$Enums.ResumeStatus;
+        isPinned: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     togglePin(resumeId: string, userId: string): Promise<{
         id: string;

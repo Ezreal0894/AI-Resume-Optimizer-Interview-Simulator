@@ -2,6 +2,16 @@ export declare class AnalyzeResumeDto {
     targetRole: string;
     targetJd?: string;
 }
+export interface ResumeExtractResult {
+    resumeId: string;
+    personalInfo: {
+        name: string;
+        role: string;
+        yearsOfExperience: number;
+    };
+    highlights: string[];
+    knowledgePoints: string[];
+}
 export interface ResumeAnalysisReport {
     overallScore: number;
     atsCompatibility: {

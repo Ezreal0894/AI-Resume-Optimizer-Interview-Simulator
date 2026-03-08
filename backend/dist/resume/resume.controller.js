@@ -31,6 +31,19 @@ let ResumeController = class ResumeController {
     constructor(resumeService) {
         this.resumeService = resumeService;
     }
+    async extractResume(file, targetRole, resumeId, userId) {
+        if (!file && !resumeId) {
+            throw new common_1.BadRequestException('请上传简历文件或提供简历 ID');
+        }
+        if (!targetRole || targetRole.trim().length === 0) {
+            throw new common_1.BadRequestException('请填写目标职位');
+        }
+        const result = await this.resumeService.extractResumeStructured(file || null, userId, targetRole.trim(), resumeId);
+        return {
+            message: '简历解析完成',
+            data: result,
+        };
+    }
     async analyzeResume(file, targetRole, targetJd, userId) {
         if (!file) {
             throw new common_1.BadRequestException('请上传简历文件');
@@ -68,6 +81,39 @@ let ResumeController = class ResumeController {
     }
 };
 exports.ResumeController = ResumeController;
+__decorate([
+    (0, common_1.Post)('extract'),
+    (0, common_1.UseGuards)(rate_limit_guard_1.UserRateLimitGuard),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: {
+            fileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
+            files: 1,
+        },
+        fileFilter: (req, file, callback) => {
+            if (!file) {
+                callback(null, true);
+                return;
+            }
+            if (!UPLOAD_CONFIG.ALLOWED_MIMES.includes(file.mimetype)) {
+                callback(new common_1.BadRequestException('仅支持 PDF 和 DOCX 格式'), false);
+                return;
+            }
+            if (/[<>:"/\\|?*\x00-\x1f]/.test(file.originalname)) {
+                callback(new common_1.BadRequestException('文件名包含非法字符'), false);
+                return;
+            }
+            callback(null, true);
+        },
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Body)('targetRole')),
+    __param(2, (0, common_1.Body)('resumeId')),
+    __param(3, (0, current_user_decorator_1.CurrentUser)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ResumeController.prototype, "extractResume", null);
 __decorate([
     (0, common_1.Post)('analyze'),
     (0, common_1.UseGuards)(rate_limit_guard_1.UserRateLimitGuard),

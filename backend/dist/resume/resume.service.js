@@ -26,7 +26,7 @@ const ALLOWED_MIME_TYPES = [
 ];
 const AI_CONFIG = {
     MAX_RETRIES: 2,
-    TIMEOUT: 90000,
+    TIMEOUT: 180000,
     TEMPERATURE: 0.2,
     MAX_TOKENS: 4000,
 };
@@ -44,6 +44,202 @@ let ResumeService = class ResumeService {
             maxTokens: AI_CONFIG.MAX_TOKENS,
             timeout: AI_CONFIG.TIMEOUT,
         });
+    }
+    async extractResumeStructured(file, userId, targetRole, resumeId) {
+        if (resumeId && !file) {
+            console.log(`[Resume Extract] Using cached data for resume ${resumeId}`);
+            const resume = await this.prisma.resume.findFirst({
+                where: { id: resumeId, userId },
+                select: {
+                    id: true,
+                    rawContent: true,
+                    extractionData: true,
+                    targetRole: true,
+                },
+            });
+            if (!resume) {
+                throw new common_1.NotFoundException('简历不存在');
+            }
+            if (resume.extractionData) {
+                console.log(`[Resume Extract] Cache hit! Returning cached data`);
+                const cached = resume.extractionData;
+                return {
+                    resumeId: resume.id,
+                    personalInfo: cached.personalInfo,
+                    highlights: cached.highlights,
+                    knowledgePoints: cached.knowledgePoints,
+                };
+            }
+            console.log(`[Resume Extract] Cache miss, extracting from rawContent`);
+            if (!resume.rawContent || resume.rawContent.trim().length === 0) {
+                throw new common_1.BadRequestException('该简历没有可用的文本内容');
+            }
+            const extracted = await this.extractWithAI(resume.rawContent, targetRole || resume.targetRole || '通用职位');
+            await this.prisma.resume.update({
+                where: { id: resume.id },
+                data: {
+                    extractionData: {
+                        personalInfo: extracted.personalInfo,
+                        highlights: extracted.highlights,
+                        knowledgePoints: extracted.knowledgePoints,
+                        extractedAt: new Date().toISOString(),
+                        targetRole: targetRole || resume.targetRole,
+                    },
+                },
+            });
+            console.log(`[Resume Extract] Cached extraction data for future use`);
+            return {
+                resumeId: resume.id,
+                ...extracted,
+            };
+        }
+        if (!file) {
+            throw new common_1.BadRequestException('请上传简历文件或提供简历 ID');
+        }
+        console.log(`[Resume Extract] Processing new file: ${file.originalname}`);
+        const startTime = Date.now();
+        this.validateFile(file);
+        let newResumeId = null;
+        try {
+            const rawContent = await this.parseFileInMemory(file);
+            if (!rawContent || rawContent.trim().length < 10) {
+                throw new common_1.BadRequestException('无法从文件中提取有效内容，请确保简历包含文字');
+            }
+            const fileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+            const resume = await this.prisma.resume.create({
+                data: {
+                    userId,
+                    fileName,
+                    fileSize: file.size,
+                    mimeType: file.mimetype,
+                    rawContent,
+                    targetRole,
+                    status: 'ANALYZING',
+                },
+            });
+            newResumeId = resume.id;
+            const extractedData = await this.extractWithAI(rawContent, targetRole);
+            await this.prisma.resume.update({
+                where: { id: resume.id },
+                data: {
+                    status: 'COMPLETED',
+                    extractionData: {
+                        personalInfo: extractedData.personalInfo,
+                        highlights: extractedData.highlights,
+                        knowledgePoints: extractedData.knowledgePoints,
+                        extractedAt: new Date().toISOString(),
+                        targetRole,
+                    },
+                },
+            });
+            const duration = Date.now() - startTime;
+            console.log(`[Resume Extract] Completed in ${duration}ms`);
+            return {
+                resumeId: resume.id,
+                personalInfo: extractedData.personalInfo,
+                highlights: extractedData.highlights,
+                knowledgePoints: extractedData.knowledgePoints,
+            };
+        }
+        catch (error) {
+            console.error('Resume extraction failed:', error);
+            if (newResumeId) {
+                await this.prisma.resume.update({
+                    where: { id: newResumeId },
+                    data: { status: 'FAILED' },
+                }).catch(() => { });
+            }
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.InternalServerErrorException('简历解析失败，请稍后重试');
+        }
+    }
+    async extractWithAI(content, targetRole) {
+        const systemPrompt = `你是一位资深的简历分析专家。请从简历中提取关键信息，用于后续的定制化面试。
+
+你必须严格按照以下 JSON 格式返回，不要添加任何其他内容：
+{
+  "personalInfo": {
+    "name": "候选人姓名（如果简历中没有，返回'候选人'）",
+    "role": "当前职位或目标职位",
+    "yearsOfExperience": 工作年限（整数，如果无法判断返回 0）
+  },
+  "highlights": [
+    "核心亮点1（如：5年大厂经验）",
+    "核心亮点2（如：主导过百万级用户项目）",
+    "核心亮点3（如：精通微服务架构）"
+  ],
+  "knowledgePoints": [
+    "知识点1（如：React）",
+    "知识点2（如：Node.js）",
+    "知识点3（如：微服务架构）",
+    "知识点4（如：性能优化）"
+  ]
+}
+
+提取规则：
+1. personalInfo.name: 从简历中提取真实姓名，如果没有则返回"候选人"
+2. personalInfo.role: 提取当前职位或目标职位
+3. personalInfo.yearsOfExperience: 计算工作年限（整数）
+4. highlights: 提取 3-5 个最核心的亮点（项目经验、技术能力、业绩成果）
+5. knowledgePoints: 提取 8-15 个技术栈/知识点（编程语言、框架、工具、方法论等）
+
+注意：
+- highlights 要简洁有力，突出候选人的核心竞争力
+- knowledgePoints 要全面覆盖简历中提到的技术栈
+- 所有字段都必须填写，不能为空`;
+        const humanPrompt = `目标职位：${targetRole}
+
+简历内容：
+${content.substring(0, 8000)}
+
+请严格按照 JSON 格式返回提取结果。`;
+        let lastError = null;
+        for (let attempt = 0; attempt <= AI_CONFIG.MAX_RETRIES; attempt++) {
+            try {
+                const response = await this.llm.invoke([
+                    new messages_1.SystemMessage(systemPrompt),
+                    new messages_1.HumanMessage(humanPrompt),
+                ]);
+                const responseText = response.content;
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) {
+                    throw new Error('AI 返回格式错误，无法解析 JSON');
+                }
+                const extracted = JSON.parse(jsonMatch[0]);
+                return this.validateAndNormalizeExtraction(extracted);
+            }
+            catch (error) {
+                lastError = error;
+                console.warn(`AI extraction attempt ${attempt + 1} failed:`, error);
+                if (attempt < AI_CONFIG.MAX_RETRIES) {
+                    await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+                }
+            }
+        }
+        throw lastError || new Error('AI 提取失败');
+    }
+    validateAndNormalizeExtraction(data) {
+        return {
+            personalInfo: {
+                name: typeof data.personalInfo?.name === 'string' && data.personalInfo.name.trim()
+                    ? data.personalInfo.name.trim()
+                    : '候选人',
+                role: typeof data.personalInfo?.role === 'string' && data.personalInfo.role.trim()
+                    ? data.personalInfo.role.trim()
+                    : '技术岗位',
+                yearsOfExperience: typeof data.personalInfo?.yearsOfExperience === 'number'
+                    ? Math.max(0, Math.min(50, data.personalInfo.yearsOfExperience))
+                    : 0,
+            },
+            highlights: Array.isArray(data.highlights)
+                ? data.highlights.filter((h) => typeof h === 'string' && h.trim()).slice(0, 5)
+                : ['具备扎实的技术基础', '良好的沟通能力'],
+            knowledgePoints: Array.isArray(data.knowledgePoints)
+                ? data.knowledgePoints.filter((k) => typeof k === 'string' && k.trim()).slice(0, 15)
+                : ['编程基础', '算法与数据结构'],
+        };
     }
     async analyzeResume(file, userId, targetRole, targetJd) {
         this.validateFile(file);

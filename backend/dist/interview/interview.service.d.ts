@@ -52,6 +52,10 @@ export declare class InterviewService {
         jobTitle: string;
         jobDescription: string | null;
         difficulty: import(".prisma/client").$Enums.InterviewDifficulty;
+        mode: import(".prisma/client").$Enums.InterviewMode;
+        resumeId: string | null;
+        customKnowledgePoints: string[];
+        topics: string[];
         status: import(".prisma/client").$Enums.InterviewStatus;
         isPinned: boolean;
         metrics: import("@prisma/client/runtime/library").JsonValue | null;
@@ -62,6 +66,10 @@ export declare class InterviewService {
         id: string;
         isPinned: boolean;
     }>;
+    deleteSession(sessionId: string, userId: string): Promise<void>;
+    private generateDynamicSystemPrompt;
+    private extractResumeContent;
+    private generateDynamicGreeting;
     private generateSystemPrompt;
     private generateGreeting;
     private buildLangchainMessages;

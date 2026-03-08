@@ -54,6 +54,10 @@ export declare class InterviewController {
             jobTitle: string;
             jobDescription: string | null;
             difficulty: import(".prisma/client").$Enums.InterviewDifficulty;
+            mode: import(".prisma/client").$Enums.InterviewMode;
+            resumeId: string | null;
+            customKnowledgePoints: string[];
+            topics: string[];
             status: import(".prisma/client").$Enums.InterviewStatus;
             isPinned: boolean;
             metrics: import("@prisma/client/runtime/library").JsonValue | null;
@@ -66,5 +70,8 @@ export declare class InterviewController {
             id: string;
             isPinned: boolean;
         };
+    }>;
+    deleteSession(sessionId: string, userId: string): Promise<{
+        message: string;
     }>;
 }
